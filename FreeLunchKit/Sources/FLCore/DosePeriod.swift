@@ -132,7 +132,14 @@ public enum DosePeriodDerivation {
     }
 
     static func sameStrength(_ lhs: ShotEventData, _ rhs: ShotEventData) -> Bool {
-        lhs.medicationID == rhs.medicationID
-            && (lhs.doseMg * 1_000).rounded() == (rhs.doseMg * 1_000).rounded()
+        guard lhs.medicationID == rhs.medicationID else { return false }
+        let lhsMicrograms = lhs.doseMg * 1_000
+        let rhsMicrograms = rhs.doseMg * 1_000
+        // A dose too large to scale stays finite in mg; compare it exactly
+        // so two different huge doses never collapse to inf == inf.
+        guard lhsMicrograms.isFinite, rhsMicrograms.isFinite else {
+            return lhs.doseMg == rhs.doseMg
+        }
+        return lhsMicrograms.rounded() == rhsMicrograms.rounded()
     }
 }

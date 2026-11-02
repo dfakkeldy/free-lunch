@@ -11,6 +11,29 @@ private func roundTrip<T: Codable & Equatable>(_ value: T) throws -> T {
     try JSONDecoder().decode([T].self, from: JSONEncoder().encode([value]))[0]
 }
 
+// Exhaustive switches with no default: adding a case to either enum stops
+// this file compiling, so the hand-built lists below cannot fall behind.
+private func sideEffectCaseName(_ value: SideEffectType) -> String {
+    switch value {
+    case .nausea: "nausea"
+    case .vomiting: "vomiting"
+    case .constipation: "constipation"
+    case .diarrhea: "diarrhea"
+    case .fatigue: "fatigue"
+    case .appetiteLoss: "appetiteLoss"
+    case .injectionSite: "injectionSite"
+    case .other: "other"
+    }
+}
+
+private func formulaOriginCaseName(_ value: FormulaOrigin) -> String {
+    switch value {
+    case .builtin: "builtin"
+    case .userEdited: "userEdited"
+    case .imported: "imported"
+    }
+}
+
 @Suite("Spec §1 enums")
 struct DomainEnumsTests {
     @Test("FoodOrigin")
@@ -63,6 +86,10 @@ struct DomainEnumsTests {
             .fatigue, .appetiteLoss, .injectionSite, .other("headache")
         ]
         #expect(Set(all).count == 8)
+        #expect(all.map(sideEffectCaseName) == [
+            "nausea", "vomiting", "constipation", "diarrhea",
+            "fatigue", "appetiteLoss", "injectionSite", "other"
+        ])
         for value in all {
             #expect(try roundTrip(value) == value)
         }
@@ -88,6 +115,7 @@ struct DomainEnumsTests {
     func formulaOrigin() throws {
         let all: [FormulaOrigin] = [.builtin("FL-EB v1"), .userEdited, .imported]
         #expect(Set(all).count == 3)
+        #expect(all.map(formulaOriginCaseName) == ["builtin", "userEdited", "imported"])
         for value in all {
             #expect(try roundTrip(value) == value)
         }

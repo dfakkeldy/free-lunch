@@ -161,6 +161,16 @@ struct DosePeriodDerivationTests {
         #expect(periods[0].injectionCount == 2)
     }
 
+    @Test("two different doses too large to scale to micrograms stay distinct")
+    func hugeDosesDoNotOverflowIntoOnePeriod() {
+        let periods = DosePeriodDerivation.periods(
+            shots: [shot(1, day: 0, mg: 1e306), shot(2, day: 7, mg: 2e306)],
+            profiles: [F.profile],
+            asOf: F.day(14)
+        )
+        #expect(periods.count == 2)
+    }
+
     @Test("an unknown medication profile leaves expected and coverage nil")
     func unknownProfile() {
         let periods = DosePeriodDerivation.periods(shots: F.shots, profiles: [], asOf: F.asOf)
