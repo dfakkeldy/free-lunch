@@ -187,3 +187,51 @@ struct TrendSmoothingTests {
         #expect(TrendSmoothing(alpha: alpha) == nil)
     }
 }
+
+@Suite("Trend weight: input hardening")
+struct TrendHardeningTests {
+    @Test(
+        "a non-finite weigh-in is dropped and cannot poison the trend",
+        arguments: [Double.nan, Double.infinity, -Double.infinity]
+    )
+    func nonFiniteDropped(bad: Double) {
+        let clean = samples([(0, 100.0), (1, 99.0), (2, 99.5), (5, 98.0), (6, 98.4)])
+        let dirty = clean + [WeightSample(measuredAt: day(3), weightKg: bad)]
+        let series = TrendWeight.series(samples: dirty)
+        #expect(series.points.count == 5)
+        #expect(series.points.allSatisfy { $0.weightKg.isFinite })
+        // Same values as the clean gap fixture above.
+        expectClose(series.points[3].trendKg, 99.35594)
+        expectClose(series.points[4].trendKg, 99.260346)
+        expectClose(series.trend(asOf: day(40)), 99.260346)
+    }
+
+    @Test("a non-finite weigh-in does not count toward the 3-sample gate")
+    func nonFiniteNotCounted() {
+        let raw = samples([(0, 80.0), (5, 79.5)]) + [WeightSample(measuredAt: day(2.5), weightKg: .nan)]
+        let series = TrendWeight.series(samples: raw)
+        #expect(series.points.count == 2)
+        #expect(!series.isTrendDefined(asOf: day(5)))
+    }
+
+    @Test("a hand-built series in any order answers as-of queries in time order")
+    func unsortedPublicInit() {
+        let early = TrendPoint(measuredAt: day(0), weightKg: 80.0, trendKg: nil)
+        let middle = TrendPoint(measuredAt: day(5), weightKg: 79.0, trendKg: 79.5)
+        let late = TrendPoint(measuredAt: day(9), weightKg: 78.0, trendKg: 79.0)
+        let series = TrendSeries(smoothing: .standard, points: [late, early, middle])
+        #expect(series.points == [early, middle, late])
+        #expect(series.latestPoint(asOf: day(6)) == middle)
+        #expect(series.trend(asOf: day(6)) == 79.5)
+        #expect(series.trend(asOf: day(1)) == nil)
+        #expect(series.trend(asOf: day(9)) == 79.0)
+    }
+
+    @Test("a hand-built series already in order is kept as given")
+    func sortedPublicInitUnchanged() {
+        let first = TrendPoint(measuredAt: day(0), weightKg: 81.0, trendKg: nil)
+        let second = TrendPoint(measuredAt: day(0), weightKg: 80.0, trendKg: 80.5)
+        let series = TrendSeries(smoothing: .standard, points: [first, second])
+        #expect(series.points == [first, second])
+    }
+}

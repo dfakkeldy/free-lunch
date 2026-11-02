@@ -38,7 +38,7 @@ public struct TrendSmoothing: Sendable, Hashable {
     }
 }
 
-/// One point of the trend series, aligned 1:1 with a sorted weigh-in.
+/// One point of the trend series, aligned 1:1 with a sorted, finite weigh-in.
 public struct TrendPoint: Sendable, Hashable {
     public let measuredAt: Date
     /// The raw (corrected) weigh-in at this instant.
@@ -72,6 +72,9 @@ public struct TrendPoint: Sendable, Hashable {
 ///   current one is at least 5 × 86 400 seconds.
 /// - Definedness is evaluated per point. The smoothing runs from the seed
 ///   regardless; only its exposure waits for the gate.
+/// - A weigh-in whose weight is NaN or infinite is not a weigh-in: it is
+///   dropped before smoothing, gets no point, and does not count toward the
+///   3-sample gate. One bad value can never poison the trend.
 public enum TrendWeight {
     /// The trend needs at least this many samples before it is defined.
     public static let minimumSampleCount = 3
@@ -87,16 +90,16 @@ public enum TrendWeight {
 
     /// Smooths `samples` into a trend series. Input order does not matter:
     /// samples are sorted by time (ties broken by weight so the result does
-    /// not depend on input order).
+    /// not depend on input order). Non-finite weights are dropped first.
     public static func series(
         samples: [WeightSample],
         smoothing: TrendSmoothing = .standard
     ) -> TrendSeries {
-        let sorted = samples.sorted {
+        let sorted = samples.lazy.filter { $0.weightKg.isFinite }.sorted {
             ($0.measuredAt, $0.weightKg) < ($1.measuredAt, $1.weightKg)
         }
         guard let seed = sorted.first else {
-            return TrendSeries(smoothing: smoothing, points: [])
+            return TrendSeries(smoothing: smoothing, sortedPoints: [])
         }
 
         var points: [TrendPoint] = []
@@ -119,7 +122,7 @@ public enum TrendWeight {
                 trendKg: defined ? trend : nil
             ))
         }
-        return TrendSeries(smoothing: smoothing, points: points)
+        return TrendSeries(smoothing: smoothing, sortedPoints: points)
     }
 }
 
@@ -129,9 +132,23 @@ public struct TrendSeries: Sendable, Hashable {
     /// One point per weigh-in, sorted by time.
     public let points: [TrendPoint]
 
+    /// Builds a series from points in any order. Points are put in time
+    /// order (ties broken by weight) if they are not already, so the
+    /// as-of queries below always see a sorted series.
     public init(smoothing: TrendSmoothing, points: [TrendPoint]) {
+        let inOrder = zip(points, points.dropFirst()).allSatisfy { $0.measuredAt <= $1.measuredAt }
+        self.init(
+            smoothing: smoothing,
+            sortedPoints: inOrder ? points : points.sorted {
+                ($0.measuredAt, $0.weightKg) < ($1.measuredAt, $1.weightKg)
+            }
+        )
+    }
+
+    /// For points already in time order (as ``TrendWeight/series(samples:smoothing:)`` emits them).
+    init(smoothing: TrendSmoothing, sortedPoints: [TrendPoint]) {
         self.smoothing = smoothing
-        self.points = points
+        self.points = sortedPoints
     }
 
     /// The most recent point at or before `date`, if any.
