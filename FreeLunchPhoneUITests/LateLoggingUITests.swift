@@ -5,6 +5,12 @@
 // changed afterwards and the plate leaves today. The seeded draft is one
 // synthetic 250 kcal item and nothing else is logged, so yesterday's total
 // after logging it there is exactly 250 kcal.
+//
+// The move test also seeds a synthetic plate logged yesterday (400 kcal,
+// P 20 g, C 50 g, F 12 g). Moving the 250 kcal plate (P 8, C 30, F 10)
+// there from today leaves today at 0 and yesterday at 400 + 250 = 650,
+// P 28, C 80, F 22: worked by hand, and read back from the app model's
+// move readout on the plate.
 
 import XCTest
 
@@ -53,15 +59,17 @@ final class LateLoggingUITests: XCTestCase {
     @MainActor
     func testLoggedPlateTimeCanBeMovedToYesterday() {
         continueAfterFailure = false
-        let app = launchWithSeededDraft()
+        let app = launchWithSeededDraft(extraArguments: ["-FLUITestSeedLoggedYesterday"])
         openSeededDraft(in: app)
 
-        // Log at now, the unchanged default: the sheet speaks of today.
+        // Log at now, the unchanged default: the sheet speaks of today, and
+        // yesterday's seeded plate is not in today's total.
         app.buttons["plate.log"].tap()
         let remaining = app.staticTexts["postLog.section.remaining"]
         XCTAssertTrue(remaining.waitForExistence(timeout: 10))
         XCTAssertEqual(remaining.label, "Remaining today")
         XCTAssertEqual(app.staticTexts["postLog.section.dailyTotals"].label, "Today's totals")
+        XCTAssertTrue(app.staticTexts["250 kcal"].exists)
         app.buttons["postLog.done"].tap()
         XCTAssertTrue(remaining.waitForNonExistence(timeout: 10))
 
@@ -84,6 +92,18 @@ final class LateLoggingUITests: XCTestCase {
         expectation(for: movedValue, evaluatedWith: loggedAt)
         waitForExpectations(timeout: 10)
 
+        // Both days' totals after the move, exactly.
+        let left = app.staticTexts["plate.moved.previous"]
+        let joined = app.staticTexts["plate.moved.current"]
+        XCTAssertTrue(joined.waitForExistence(timeout: 10))
+        XCTAssertEqual(left.label, "Today: 0 kcal · P 0 g · C 0 g · F 0 g")
+        XCTAssertEqual(joined.label, "Yesterday: 650 kcal · P 28 g · C 80 g · F 22 g")
+
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "logged-plate-moved-to-yesterday"
+        shot.lifetime = .keepAlways
+        add(shot)
+
         // Today no longer holds it.
         app.navigationBars["Logged plate"].buttons.element(boundBy: 0).tap()
         XCTAssertTrue(app.staticTexts["phone.emptyState.heading"].waitForExistence(timeout: 10))
@@ -93,9 +113,9 @@ final class LateLoggingUITests: XCTestCase {
     // MARK: Helpers
 
     @MainActor
-    private func launchWithSeededDraft() -> XCUIApplication {
+    private func launchWithSeededDraft(extraArguments: [String] = []) -> XCUIApplication {
         let app = XCUIApplication(bundleIdentifier: "com.freelunch.nutrition")
-        app.launchArguments += ["-FLUITestInMemoryStore", "-FLUITestSeedDraft"]
+        app.launchArguments += ["-FLUITestInMemoryStore", "-FLUITestSeedDraft"] + extraArguments
         app.launch()
         return app
     }

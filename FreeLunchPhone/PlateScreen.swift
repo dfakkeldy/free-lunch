@@ -38,16 +38,41 @@ struct PlateScreen: View {
         return List {
             if let loggedAtText = model.loggedAtText(for: meal), let loggedAt = meal.loggedAt {
                 Section("Logged") {
-                    Button {
-                        loggedAtSheet = .move(current: loggedAt)
-                    } label: {
+                    if model.canChangeLoggedAt(of: meal) {
+                        Button {
+                            loggedAtSheet = .move(current: loggedAt)
+                        } label: {
+                            LabeledContent("Eaten", value: loggedAtText)
+                        }
+                        .foregroundStyle(.primary)
+                        .accessibilityLabel("Logged time")
+                        .accessibilityValue(loggedAtText)
+                        .accessibilityHint("Change when this plate was eaten")
+                        .accessibilityIdentifier("plate.loggedAt")
+                    } else {
+                        // An imported plate can't be edited; its time is
+                        // shown, not offered as a control.
                         LabeledContent("Eaten", value: loggedAtText)
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel("Logged time")
+                            .accessibilityValue(loggedAtText)
+                            .accessibilityIdentifier("plate.loggedAt")
                     }
-                    .foregroundStyle(.primary)
-                    .accessibilityLabel("Logged time")
-                    .accessibilityValue(loggedAtText)
-                    .accessibilityHint("Change when this plate was eaten")
-                    .accessibilityIdentifier("plate.loggedAt")
+                }
+            }
+
+            // After a time change: both days' totals as they now stand
+            // (spec §2 acceptance #8). The day the plate left comes first.
+            if let move = model.moveSummary(for: meal.id) {
+                Section(move.title) {
+                    if !move.isSameDay {
+                        Text(move.previous.text)
+                            .monospacedDigit()
+                            .accessibilityIdentifier("plate.moved.previous")
+                    }
+                    Text(move.current.text)
+                        .monospacedDigit()
+                        .accessibilityIdentifier("plate.moved.current")
                 }
             }
 

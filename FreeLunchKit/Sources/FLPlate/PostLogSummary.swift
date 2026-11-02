@@ -2,9 +2,10 @@
 // The post-log surface (spec §2 "Post-log surface", acceptance #7): one
 // dismissible sheet, remaining today first, daily totals beneath, and
 // nothing after it. A plate logged late (acceptance #8) shows the day it
-// was logged into: "Remaining yesterday" and yesterday's numbers. The section order is fixed by the type, not by the
-// view, and `snapshot` renders exactly the titles and lines the sheet shows
-// so a text snapshot pins what the user sees.
+// was logged into: "Remaining yesterday" and yesterday's numbers. The
+// section order is fixed by the type, not by the view, and `snapshot`
+// renders exactly the titles and lines the sheet shows so a text snapshot
+// pins what the user sees.
 import FLCore
 import Foundation
 
