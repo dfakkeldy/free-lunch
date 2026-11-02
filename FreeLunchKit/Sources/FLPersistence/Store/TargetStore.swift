@@ -68,9 +68,9 @@ public enum TargetStoreError: Error, Equatable, Sendable {
     /// A stored version has no parameters, or they do not decode to a valid
     /// set (ρ finite and positive).
     case invalidFormulaParameters(UUID)
-    /// A stored period fails validation: a non-finite or non-positive value,
-    /// invalid macros, no pinned version, a second open period, or an
-    /// overlap with the period before it.
+    /// A stored period fails validation: a non-finite value, a non-positive
+    /// adopted target, invalid macros, no pinned version, a second open
+    /// period, or an overlap with the period before it.
     case invalidTargetPeriod(UUID)
     /// The energy core refused the adoption.
     case adoption(TargetLedger.AdoptionError)
@@ -315,9 +315,7 @@ extension TargetPeriod {
     func asAdoptedTargetPeriod() throws -> AdoptedTargetPeriod {
         guard let formulaVersion,
               expenditureAtAdoptionKcal.isFinite,
-              expenditureAtAdoptionKcal > 0,
               calculatedTargetKcal.isFinite,
-              calculatedTargetKcal > 0,
               adoptedTargetKcal.isFinite, adoptedTargetKcal > 0,
               MacroTargets(proteinTargetG: proteinTargetG, fatFloorPct: fatFloorPct) != nil,
               endDate.map({ $0 >= startDate.addingTimeInterval(-Self.maxEndBeforeStart) }) ?? true

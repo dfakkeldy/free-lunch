@@ -20,12 +20,10 @@ public final class SwiftDataStore: FreeLunchStore {
     /// Internal: `ModelContainer` never appears in a public signature (see
     /// Schema/FreeLunchContainer.swift). Tests reach it through
     /// `@testable import` to open a second store on the same container.
-    init(container: ModelContainer) {
+    convenience init(container: ModelContainer) {
         // Test-built stores are deliberately unrestricted, so one fixture can
         // exercise both the phone history and the watch working set.
-        kind = nil
-        context = ModelContext(container)
-        context.autosaveEnabled = false
+        self.init(container: container, kind: nil)
     }
 
     public convenience init(kind: FreeLunchStoreKind, at location: FreeLunchStoreLocation = .applicationDefault) throws {
@@ -33,7 +31,7 @@ public final class SwiftDataStore: FreeLunchStore {
         self.init(container: container, kind: kind)
     }
 
-    private init(container: ModelContainer, kind: FreeLunchStoreKind) {
+    private init(container: ModelContainer, kind: FreeLunchStoreKind?) {
         self.kind = kind
         context = ModelContext(container)
         context.autosaveEnabled = false
@@ -79,11 +77,11 @@ public final class SwiftDataStore: FreeLunchStore {
     }
 
     public func food(id: UUID) throws -> FoodItemData? {
-        return try model(FoodItem.self, id: id)?.asData()
+        try model(FoodItem.self, id: id)?.asData()
     }
 
     public func foods(includingArchived: Bool) throws -> [FoodItemData] {
-        return try context.fetch(FetchDescriptor<FoodItem>())
+        try context.fetch(FetchDescriptor<FoodItem>())
             .filter { includingArchived || $0.archivedAt == nil }
             .map { try $0.asData() }
             .sorted { lhs, rhs in
@@ -150,11 +148,11 @@ public final class SwiftDataStore: FreeLunchStore {
     }
 
     public func recipe(id: UUID) throws -> RecipeData? {
-        return try model(Recipe.self, id: id)?.asData()
+        try model(Recipe.self, id: id)?.asData()
     }
 
     public func recipes() throws -> [RecipeData] {
-        return try context.fetch(FetchDescriptor<Recipe>())
+        try context.fetch(FetchDescriptor<Recipe>())
             .map { $0.asData() }
             .sorted { lhs, rhs in
                 if lhs.name != rhs.name { return lhs.name < rhs.name }
@@ -208,11 +206,11 @@ public final class SwiftDataStore: FreeLunchStore {
     }
 
     public func meal(id: UUID) throws -> MealEntryData? {
-        return try model(MealEntry.self, id: id)?.asData()
+        try model(MealEntry.self, id: id)?.asData()
     }
 
     public func meals() throws -> [MealEntryData] {
-        return try context.fetch(FetchDescriptor<MealEntry>())
+        try context.fetch(FetchDescriptor<MealEntry>())
             .map { $0.asData() }
             .sorted { lhs, rhs in
                 if lhs.createdAt != rhs.createdAt { return lhs.createdAt < rhs.createdAt }
@@ -221,7 +219,7 @@ public final class SwiftDataStore: FreeLunchStore {
     }
 
     public func loggedMeals(in interval: DateInterval) throws -> [MealEntryData] {
-        return try context.fetch(FetchDescriptor<MealEntry>())
+        try context.fetch(FetchDescriptor<MealEntry>())
             .filter { meal in
                 guard meal.state == .logged, let loggedAt = meal.loggedAt else { return false }
                 return loggedAt >= interval.start && loggedAt < interval.end
@@ -456,7 +454,7 @@ public final class SwiftDataStore: FreeLunchStore {
     }
 
     public func aiEstimation(id: UUID) throws -> AIEstimationRecordData? {
-        return try model(AIEstimationRecord.self, id: id)?.asData()
+        try model(AIEstimationRecord.self, id: id)?.asData()
     }
 
     // MARK: - Medication
@@ -479,11 +477,11 @@ public final class SwiftDataStore: FreeLunchStore {
     }
 
     public func medicationProfile(id: UUID) throws -> MedicationProfileData? {
-        return try model(MedicationProfile.self, id: id)?.asData()
+        try model(MedicationProfile.self, id: id)?.asData()
     }
 
     public func medicationProfiles(includingArchived: Bool) throws -> [MedicationProfileData] {
-        return try context.fetch(FetchDescriptor<MedicationProfile>())
+        try context.fetch(FetchDescriptor<MedicationProfile>())
             .filter { includingArchived || $0.archivedAt == nil }
             .map { $0.asData() }
             .sorted { lhs, rhs in
@@ -522,11 +520,11 @@ public final class SwiftDataStore: FreeLunchStore {
     }
 
     public func shot(id: UUID) throws -> ShotEventData? {
-        return try model(ShotEvent.self, id: id)?.asData()
+        try model(ShotEvent.self, id: id)?.asData()
     }
 
     public func shots() throws -> [ShotEventData] {
-        return try context.fetch(FetchDescriptor<ShotEvent>())
+        try context.fetch(FetchDescriptor<ShotEvent>())
             .compactMap { $0.asData() }
             .sorted { lhs, rhs in
                 if lhs.takenAt != rhs.takenAt { return lhs.takenAt < rhs.takenAt }
@@ -574,7 +572,7 @@ public final class SwiftDataStore: FreeLunchStore {
     }
 
     public func sideEffects() throws -> [SideEffectEntryData] {
-        return try context.fetch(FetchDescriptor<SideEffectEntry>())
+        try context.fetch(FetchDescriptor<SideEffectEntry>())
             .map { $0.asData() }
             .sorted { lhs, rhs in
                 if lhs.occurredAt != rhs.occurredAt { return lhs.occurredAt < rhs.occurredAt }
@@ -610,7 +608,7 @@ public final class SwiftDataStore: FreeLunchStore {
     }
 
     public func plannedShots() throws -> [PlannedShotData] {
-        return try context.fetch(FetchDescriptor<PlannedShot>())
+        try context.fetch(FetchDescriptor<PlannedShot>())
             .map { $0.asData() }
             .sorted { lhs, rhs in
                 if lhs.plannedAt != rhs.plannedAt { return lhs.plannedAt < rhs.plannedAt }
@@ -637,7 +635,7 @@ public final class SwiftDataStore: FreeLunchStore {
     }
 
     public func plannedMeals() throws -> [PlannedMealData] {
-        return try context.fetch(FetchDescriptor<PlannedMeal>())
+        try context.fetch(FetchDescriptor<PlannedMeal>())
             .map { $0.asData() }
             .sorted { lhs, rhs in
                 if lhs.plannedAt != rhs.plannedAt { return lhs.plannedAt < rhs.plannedAt }
@@ -663,7 +661,7 @@ public final class SwiftDataStore: FreeLunchStore {
     }
 
     public func journalEntries() throws -> [JournalEntryData] {
-        return try context.fetch(FetchDescriptor<JournalEntry>())
+        try context.fetch(FetchDescriptor<JournalEntry>())
             .map { $0.asData() }
             .sorted { lhs, rhs in
                 if lhs.at != rhs.at { return lhs.at < rhs.at }

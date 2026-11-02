@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Predicate, store-shape, and corrupted-ledger regressions. All fixtures are synthetic.
 import FLCore
+import FLEnergyCore
 import Foundation
 import SwiftData
 import Testing
@@ -56,6 +57,18 @@ struct StoreHardeningTests {
             medicationID: uid(70_003), source: .watch
         )
         let hunger = WatchHungerEdit(mealID: uid(70_004), hunger: 3, editedAt: at())
+        let formula = StoredFormulaVersion.builtinV1(id: uid(70_008), createdAt: at())
+        let weight = WeightSampleData(
+            hkUUID: uid(70_009), measuredAt: at(), weight: Kilograms(70),
+            sourceBundleID: "com.example.synthetic.scale"
+        )
+        let correction = CorrectionData(
+            id: uid(70_010), createdAt: at(), targetKind: .hkWeightSample,
+            targetID: uid(70_009).uuidString, action: .exclude
+        )
+        let estimation = AIEstimationRecordData(
+            id: uid(70_011), createdAt: at(), providerTier: 1, modelID: "synthetic"
+        )
 
         #expect(throws: FreeLunchStoreError.watchOnlyOperation("replaceRecentFoods")) { try phone.replaceRecentFoods(digest) }
         #expect(throws: FreeLunchStoreError.watchOnlyOperation("recentFoods")) { try phone.recentFoods() }
@@ -67,6 +80,30 @@ struct StoreHardeningTests {
 
         let watch = try SwiftDataStore.watch(at: .inMemory)
         #expect(throws: FreeLunchStoreError.phoneOnlyOperation("weightSamples")) { try watch.weightSamples(includingDeletedInHK: true) }
+        #expect(throws: FreeLunchStoreError.phoneOnlyOperation("adoptTarget")) {
+            try watch.adoptTarget(
+                TargetAdoption(
+                    calculated: CalculatedTarget(expenditureKcal: 2_000, rateGoal: .maintenance),
+                    adoptedTargetKcal: 1_200,
+                    macros: MacroTargets(proteinTargetG: 128, fatFloorPct: 20)!,
+                    formula: .builtinV1
+                ),
+                on: at(), calendar: utcCalendar, id: uid(70_012)
+            )
+        }
+        #expect(throws: FreeLunchStoreError.phoneOnlyOperation("registerFormulaVersion")) { try watch.registerFormulaVersion(formula) }
+        #expect(throws: FreeLunchStoreError.phoneOnlyOperation("upsertWeightSample")) { try watch.upsertWeightSample(weight) }
+        #expect(throws: FreeLunchStoreError.phoneOnlyOperation("markWeightSampleDeletedInHK")) { try watch.markWeightSampleDeletedInHK(hkUUID: uid(70_009)) }
+        #expect(throws: FreeLunchStoreError.phoneOnlyOperation("addCorrection")) { try watch.addCorrection(correction) }
+        #expect(throws: FreeLunchStoreError.phoneOnlyOperation("deleteCorrection")) { try watch.deleteCorrection(id: uid(70_010)) }
+        #expect(throws: FreeLunchStoreError.phoneOnlyOperation("corrections")) { try watch.corrections(targetKind: nil) }
+        #expect(throws: FreeLunchStoreError.phoneOnlyOperation("correctedWeightView")) { try watch.correctedWeightView() }
+        #expect(throws: FreeLunchStoreError.phoneOnlyOperation("saveAICapture")) { try watch.saveAICapture(AICaptureSnapshot(photos: [], records: [], items: []), toMeal: uid(70_013)) }
+        #expect(throws: FreeLunchStoreError.phoneOnlyOperation("aiCapture")) { try watch.aiCapture(forMeal: uid(70_013)) }
+        #expect(throws: FreeLunchStoreError.phoneOnlyOperation("setLoggedAt")) { try watch.setLoggedAt(at(), mealID: uid(70_013)) }
+        #expect(throws: FreeLunchStoreError.phoneOnlyOperation("setItemQuantity")) { try watch.setItemQuantity(Grams(1), itemID: uid(70_014)) }
+        #expect(throws: FreeLunchStoreError.phoneOnlyOperation("updateAIEstimation")) { try watch.updateAIEstimation(estimation) }
+        #expect(throws: FreeLunchStoreError.phoneOnlyOperation("formulaVersion")) { try watch.formulaVersion(id: uid(70_008)) }
         #expect(throws: FreeLunchStoreError.phoneOnlyOperation("targetLedger")) { try watch.targetLedger() }
         #expect(throws: FreeLunchStoreError.phoneOnlyOperation("formulaVersions")) { try watch.formulaVersions() }
 
@@ -77,7 +114,7 @@ struct StoreHardeningTests {
         #expect(try unrestricted.food(id: uid(70_007))?.name == "Also synthetic")
     }
 
-    @Test("target ledger refuses corrupt target period rows and loads a valid row", arguments: 0..<6)
+    @Test("target ledger refuses corrupt target period rows", arguments: 0..<4)
     func targetLedgerRejectsCorruptRows(variant: Int) throws {
         let store = try makeInMemoryStore()
         let formula = try storedFormulaRow(in: store)
@@ -91,12 +128,8 @@ struct StoreHardeningTests {
             insertPeriod(store, id: uid(71_004), start: 14, end: nil, formula: formula)
         case 2:
             insertPeriod(store, id: uid(71_005), start: 10, end: 8, formula: formula)
-        case 3:
-            insertPeriod(store, id: uid(71_006), start: 10, end: nil, expenditure: 0, formula: formula)
-        case 4:
-            insertPeriod(store, id: uid(71_007), start: 10, end: nil, calculated: -1, formula: formula)
         default:
-            insertPeriod(store, id: uid(71_008), start: 10, end: nil, adopted: 0, formula: formula)
+            insertPeriod(store, id: uid(71_006), start: 10, end: nil, adopted: 0, formula: formula)
         }
         try store.context.save()
 
@@ -104,11 +137,47 @@ struct StoreHardeningTests {
         case 0: uid(71_001)
         case 1: uid(71_004)
         case 2: uid(71_005)
-        case 3: uid(71_006)
-        case 4: uid(71_007)
-        default: uid(71_008)
+        default: uid(71_006)
         }
         #expect(throws: TargetStoreError.invalidTargetPeriod(expectedID)) { try store.targetLedger() }
+    }
+
+    @Test("target ledger loads finite non-positive calculated targets and permits re-adoption")
+    func targetLedgerLoadsFiniteNonPositiveCalculatedTarget() throws {
+        let store = try makeInMemoryStore()
+        let formula = try storedFormulaRow(in: store)
+        insertPeriod(
+            store, id: uid(71_101), start: 10, end: nil,
+            expenditure: 2_000, calculated: -200, adopted: 1_200, formula: formula
+        )
+        try store.context.save()
+
+        let ledger = try store.targetLedger()
+        let period = try #require(ledger.periods.first)
+        #expect(period.expenditureAtAdoptionKcal == 2_000)
+        #expect(period.calculatedTargetKcal == -200)
+        #expect(period.adoptedTargetKcal == 1_200)
+
+        let outcome = try store.adoptTarget(
+            TargetAdoption(
+                calculated: CalculatedTarget(expenditureKcal: 2_000, rateGoal: .maintenance),
+                adoptedTargetKcal: 1_200,
+                macros: MacroTargets(proteinTargetG: 128, fatFloorPct: 20)!,
+                formula: .builtinV1
+            ),
+            on: at(day: 11), calendar: utcCalendar, id: uid(71_102)
+        )
+        #expect(outcome.ledger.periods.map(\.id) == [uid(71_101), uid(71_102)])
+    }
+
+    @Test("target ledger rejects infinite expenditure", arguments: [Double.infinity, -Double.infinity])
+    func targetLedgerRejectsInfiniteExpenditure(expenditure: Double) throws {
+        let store = try makeInMemoryStore()
+        let formula = try storedFormulaRow(in: store)
+        insertPeriod(store, id: uid(71_103), start: 10, end: nil, expenditure: expenditure, formula: formula)
+        try store.context.save()
+
+        #expect(throws: TargetStoreError.invalidTargetPeriod(uid(71_103))) { try store.targetLedger() }
     }
 
     @Test("valid target ledger still loads after stored-row validation")
