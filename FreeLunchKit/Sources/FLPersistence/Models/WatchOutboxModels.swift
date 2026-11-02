@@ -21,11 +21,8 @@ extension FreeLunchSchemaV1 {
             self.payload = payload
         }
 
-        var kind: WatchOutboxKind {
-            guard let kind = WatchOutboxKind(rawValue: kindRaw) else {
-                preconditionFailure("Stored WatchOutboxRecord has an unknown kind")
-            }
-            return kind
+        var kind: WatchOutboxKind? {
+            WatchOutboxKind(rawValue: kindRaw)
         }
     }
 }
