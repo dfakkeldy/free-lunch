@@ -182,7 +182,7 @@ extension SwiftDataStore: AICaptureStore {
             }
         }
 
-        for item in meal.items where item.aiRecord != nil && !incomingItemIDs.contains(item.id) {
+        for item in meal.items where item.aiRecord != nil && item.foodItem == nil && !incomingItemIDs.contains(item.id) {
             context.delete(item)
         }
         try commit()
@@ -208,6 +208,7 @@ extension SwiftDataStore: AICaptureStore {
         let items = meal.items
             .filter {
                 $0.aiRecord != nil
+                    && $0.foodItem == nil
                     && ($0.provenance == .aiEstimate || $0.provenance == .labelOCR)
             }
             .map { $0.asData() }

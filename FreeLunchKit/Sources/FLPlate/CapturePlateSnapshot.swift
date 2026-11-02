@@ -9,6 +9,15 @@ extension CapturePlate {
     /// Attachments not referenced by a record are intentionally omitted.
     public func snapshot(photos: [PhotoAttachmentData]) -> AICaptureSnapshot {
         let recordPhotoIDs = Set(records.compactMap(\.photoID))
+        // Label drafts have no record until persistence. Link them to the newest
+        // label record; if there is none, they are not AI-capture snapshot items.
+        let latestLabelRecordID = records
+            .filter { $0.kind == .label }
+            .max { lhs, rhs in
+                if lhs.createdAt != rhs.createdAt { return lhs.createdAt < rhs.createdAt }
+                return lhs.id.uuidString < rhs.id.uuidString
+            }?
+            .id
         let storedRecords = records.map {
             StoredAIEstimationRecordData(
                 id: $0.id,
@@ -23,7 +32,9 @@ extension CapturePlate {
             )
         }
         let storedItems = items.enumerated().compactMap { index, item -> MealItemData? in
-            guard item.aiRecordID != nil else { return nil }
+            let recordID = item.aiRecordID
+                ?? (item.provenance == .labelOCR ? latestLabelRecordID : nil)
+            guard let recordID else { return nil }
             return MealItemData(
                 id: item.id,
                 order: index,
@@ -32,7 +43,7 @@ extension CapturePlate {
                 quantity: Grams(item.quantityGrams),
                 nutrition: item.nutrition,
                 provenance: item.provenance,
-                aiRecordID: item.aiRecordID,
+                aiRecordID: recordID,
                 confidence: item.confidence
             )
         }
@@ -43,10 +54,13 @@ extension CapturePlate {
         )
     }
 
-    /// `removedAIItemNames` is intentionally not persisted, so names removed before a
-    /// relaunch are not available to suppress a later provider rerun.
+    /// Removed response names are recovered from completed meal records. A user rename
+    /// also suppresses the original response name on a later provider rerun.
     public init(snapshot: AICaptureSnapshot, state: MealState = .draft) {
-        let photos = Dictionary(uniqueKeysWithValues: snapshot.photos.map { ($0.id, $0) })
+        let photos = Dictionary(
+            snapshot.photos.map { ($0.id, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
         let loadedRecords = snapshot.records.map { record in
             let kind = record.photoID.flatMap { photos[$0]?.kind } ?? .meal
             let failure: AICaptureFailure?
@@ -74,7 +88,10 @@ extension CapturePlate {
                 failure: failure
             )
         }
-        let recordsByID = Dictionary(uniqueKeysWithValues: loadedRecords.map { ($0.id, $0) })
+        let recordsByID = Dictionary(
+            loadedRecords.map { ($0.id, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
         self.init(
             state: state,
             items: snapshot.items.sorted(by: MealItemData.displayOrder).map { item in
@@ -91,12 +108,32 @@ extension CapturePlate {
             },
             records: loadedRecords
         )
+        for record in loadedRecords where record.kind == .meal && record.status == .complete {
+            guard let responseJSON = record.responseJSON,
+                  case .success(let response) = AICaptureParser.parse(responseJSON)
+            else { continue }
+            let loadedNames = Set(items.compactMap { item in
+                item.aiRecordID == record.id ? normalized(item.name) : nil
+            })
+            let removedNames = Set(response.items.compactMap { item -> String? in
+                let name = normalized(item.name)
+                return loadedNames.contains(name) ? nil : name
+            })
+            if !removedNames.isEmpty {
+                removedAIItemNames[record.id] = removedNames
+            }
+        }
     }
 }
 
 private func captureItemWasEdited(_ item: MealItemData, record: AIEstimationRecordData?) -> Bool {
-    guard item.provenance == .aiEstimate,
-          record?.kind == .meal,
+    guard item.provenance == .aiEstimate else {
+        return false
+    }
+    if item.nutrition.fiberG != nil {
+        return true
+    }
+    guard record?.kind == .meal,
           let responseJSON = record?.responseJSON,
           case .success(let response) = AICaptureParser.parse(responseJSON)
     else {

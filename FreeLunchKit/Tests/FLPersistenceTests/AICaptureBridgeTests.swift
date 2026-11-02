@@ -115,6 +115,100 @@ struct AICaptureBridgeTests {
         #expect(try store.aiCapture(forMeal: mealID).records[0].userCorrections == ["first", "second"])
     }
 
+    @Test("rerun preserves stored user-edited AI item values")
+    func rerunPreservesUserEditedItem() throws {
+        let store = try makeInMemoryStore()
+        let mealID = uid(860)
+        let photoID = uid(861)
+        let recordID = uid(862)
+        let riceID = uid(863)
+        let firstResponse = Data("{\"items\":[{\"name\":\"rice\",\"estPortionGrams\":150,\"kcal\":300,\"protein\":6,\"carbs\":66,\"fat\":1,\"confidence\":0.8}],\"note\":\"synthetic\"}".utf8)
+        let secondResponse = Data("{\"items\":[{\"name\":\"rice\",\"estPortionGrams\":150,\"kcal\":300,\"protein\":6,\"carbs\":66,\"fat\":1,\"confidence\":0.9}],\"note\":\"rerun\"}".utf8)
+        try createDraft(store, id: mealID)
+        let editedItem = aiItem(
+            id: riceID,
+            recordID: recordID,
+            name: "rice",
+            grams: 180,
+            values: nutrition(360, 7.2, 79.2, 1.2),
+            provenance: .aiEstimate,
+            confidence: 0.8
+        )
+        try store.saveAICapture(AICaptureSnapshot(
+            photos: [PhotoAttachmentData(id: photoID, relativePath: "edited-rice.jpg", capturedAt: at(), kind: .meal)],
+            records: [AIEstimationRecordData(id: recordID, createdAt: at(), photoID: photoID, providerTier: 1, modelID: "v1", status: .complete, responseJSON: firstResponse)],
+            items: [editedItem]
+        ), toMeal: mealID)
+        try store.saveAICapture(AICaptureSnapshot(
+            photos: [PhotoAttachmentData(id: photoID, relativePath: "edited-rice.jpg", capturedAt: at(), kind: .meal)],
+            records: [AIEstimationRecordData(id: recordID, createdAt: at(), photoID: photoID, providerTier: 2, modelID: "v2", status: .complete, responseJSON: secondResponse)],
+            items: [editedItem]
+        ), toMeal: mealID)
+
+        let loaded = try store.aiCapture(forMeal: mealID)
+        let rice = try #require(loaded.items.first { $0.id == riceID })
+        #expect(rice.quantityGrams == 180)
+        #expect(rice.nutrition == nutrition(360, 7.2, 79.2, 1.2))
+        #expect(loaded.records[0].responseJSON == secondResponse)
+    }
+
+    @Test("catalog-backed AI-linked items survive capture saves but are not capture snapshot items")
+    func catalogBackedAIItemsStayOutsideCaptureSnapshot() throws {
+        let store = try makeInMemoryStore()
+        let mealID = uid(870)
+        let photoID = uid(871)
+        let recordID = uid(872)
+        let foodID = uid(873)
+        let catalogItemID = uid(874)
+        try createDraft(store, id: mealID)
+        let snapshot = AICaptureSnapshot(
+            photos: [PhotoAttachmentData(id: photoID, relativePath: "label.jpg", capturedAt: at(), kind: .label)],
+            records: [AIEstimationRecordData(id: recordID, createdAt: at(), photoID: photoID, providerTier: 1, modelID: "label", status: .complete)],
+            items: []
+        )
+        try store.saveAICapture(snapshot, toMeal: mealID)
+        try store.createFood(FoodItemData(id: foodID, name: "Synthetic cereal", per100g: nutrition(400, 10, 70, 5), origin: .custom))
+        var catalogItem = MealItemInput.catalog(
+            id: catalogItemID,
+            foodID: foodID,
+            quantity: Grams(50),
+            provenance: .labelOCR
+        )
+        catalogItem.aiRecordID = recordID
+        _ = try store.addItem(catalogItem, toMeal: mealID)
+
+        try store.saveAICapture(snapshot, toMeal: mealID)
+
+        let meal = try #require(try store.meal(id: mealID))
+        let loaded = try store.aiCapture(forMeal: mealID)
+        #expect(meal.items.contains { $0.id == catalogItemID })
+        #expect(!loaded.items.contains { $0.id == catalogItemID })
+    }
+
+    @Test("failed capture with no response cold-loads unchanged")
+    func failedCaptureWithoutResponseColdLoads() throws {
+        let url = try temporaryStoreURL()
+        defer { removeStore(at: url) }
+        let mealID = uid(880)
+        let photoID = uid(881)
+        let recordID = uid(882)
+
+        do {
+            let writer = try SwiftDataStore.phone(at: .file(url))
+            try createDraft(writer, id: mealID)
+            try writer.saveAICapture(AICaptureSnapshot(
+                photos: [PhotoAttachmentData(id: photoID, relativePath: "failed.jpg", capturedAt: at(), kind: .meal)],
+                records: [AIEstimationRecordData(id: recordID, createdAt: at(), photoID: photoID, providerTier: 1, modelID: "m", status: .failed, responseJSON: nil)],
+                items: []
+            ), toMeal: mealID)
+        }
+
+        let reader = try SwiftDataStore.phone(at: .file(url))
+        let failed = try #require(reader.aiCapture(forMeal: mealID).records.first { $0.id == recordID })
+        #expect(failed.status == .failed)
+        #expect(failed.responseJSON == nil)
+    }
+
     @Test("offline pending capture remains draft and later completes")
     func offlineThenCompletes() throws {
         let store = try makeInMemoryStore()
