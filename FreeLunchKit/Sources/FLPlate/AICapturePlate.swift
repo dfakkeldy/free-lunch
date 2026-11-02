@@ -78,7 +78,7 @@ public struct CapturePlate: Sendable, Hashable {
     public internal(set) var state: MealState
     public var items: [CapturePlateItem]
     public var records: [AIEstimationRecordData]
-    private var removedAIItemNames: [UUID: Set<String>] = [:]
+    var removedAIItemNames: [UUID: Set<String>] = [:]
 
     public init(state: MealState = .draft, items: [CapturePlateItem] = [], records: [AIEstimationRecordData] = []) {
         self.state = state
