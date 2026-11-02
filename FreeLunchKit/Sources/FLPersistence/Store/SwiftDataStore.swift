@@ -14,7 +14,8 @@ import SwiftData
 
 @MainActor
 public final class SwiftDataStore: FreeLunchStore {
-    private let context: ModelContext
+    // Internal for store-lane extensions in this module; never public API.
+    let context: ModelContext
 
     /// Internal: `ModelContainer` never appears in a public signature (see
     /// Schema/FreeLunchContainer.swift). Tests reach it through
@@ -612,7 +613,8 @@ public final class SwiftDataStore: FreeLunchStore {
 
     // MARK: - Helpers
 
-    private func commit() throws {
+    // Internal for store-lane extensions so every mutation shares rollback semantics.
+    func commit() throws {
         do {
             try context.save()
         } catch {

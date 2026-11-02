@@ -10,13 +10,13 @@ import Testing
 @MainActor
 @Suite("Spec §1 acceptance #6: migration scaffold")
 struct SchemaMigrationTests {
-    /// Every spec §1 entity plus the watch digest, by entity name.
+    /// Every spec §1 entity plus the watch digest and outbox, by entity name.
     let expectedEntities: Set<String> = [
         "FoodItem", "Recipe", "RecipeComponent", "MealEntry", "MealItem",
         "AIEstimationRecord", "PhotoAttachment", "ShotEvent", "MedicationProfile",
         "SideEffectEntry", "WeightSampleMirror", "Correction", "PlannedShot",
         "PlannedMeal", "JournalEntry", "FormulaVersion", "TargetPeriod",
-        "RecentFoodSnapshot"
+        "RecentFoodSnapshot", "WatchOutboxRecord"
     ]
 
     @Test("FreeLunchSchemaV1 is version 1.0.0 and lists every entity once")
