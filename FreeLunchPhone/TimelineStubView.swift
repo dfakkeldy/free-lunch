@@ -49,6 +49,7 @@ struct TimelineStubView: View {
                             Button { model.open(meal) } label: {
                                 MealSummaryRow(model: model, meal: meal)
                             }
+                            .foregroundStyle(.primary)
                             .accessibilityIdentifier("timeline.draftRow")
                         }
                     }
@@ -59,6 +60,7 @@ struct TimelineStubView: View {
                             Button { model.open(meal) } label: {
                                 MealSummaryRow(model: model, meal: meal)
                             }
+                            .foregroundStyle(.primary)
                             .accessibilityIdentifier("timeline.loggedRow")
                         }
                     }

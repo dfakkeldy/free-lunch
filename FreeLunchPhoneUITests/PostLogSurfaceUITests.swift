@@ -7,11 +7,9 @@
 import XCTest
 
 final class PostLogSurfaceUITests: XCTestCase {
-    override func setUp() {
-        continueAfterFailure = false
-    }
-
+    @MainActor
     func testPostLogSheetShowsRemainingAboveTotalsAndDismissesToTimelineInOneGesture() {
+        continueAfterFailure = false
         let app = XCUIApplication(bundleIdentifier: "com.freelunch.nutrition")
         app.launchArguments += ["-FLUITestInMemoryStore", "-FLUITestSeedDraft"]
         app.launch()
@@ -45,10 +43,12 @@ final class PostLogSurfaceUITests: XCTestCase {
         shot.lifetime = .keepAlways
         add(shot)
 
-        // One gesture: swipe the sheet down by its bar.
+        // One gesture: drag the sheet down by its bar, off the screen.
         let sheetBar = app.navigationBars["Logged"]
         XCTAssertTrue(sheetBar.exists)
-        sheetBar.swipeDown(velocity: .fast)
+        let grab = sheetBar.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        let bottom = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.98))
+        grab.press(forDuration: 0.1, thenDragTo: bottom, withVelocity: .fast, thenHoldForDuration: 0)
         XCTAssertTrue(remaining.waitForNonExistence(timeout: 10))
 
         // Back on the timeline, not the plate: the Log action is there, the
