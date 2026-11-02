@@ -107,14 +107,20 @@ guard let source = CGImageSourceCreateWithURL(inputURL as CFURL, nil),
     fatalError("Could not read fixture source")
 }
 
-func write(_ name: String, size: Int, alpha: CGImageAlphaInfo, draw: (CGContext) -> Void) {
+func write(
+    _ name: String,
+    size: Int,
+    alpha: CGImageAlphaInfo,
+    space: CGColorSpace = CGColorSpaceCreateDeviceRGB(),
+    draw: (CGContext) -> Void
+) {
     guard let context = CGContext(
         data: nil,
         width: size,
         height: size,
         bitsPerComponent: 8,
         bytesPerRow: 0,
-        space: CGColorSpaceCreateDeviceRGB(),
+        space: space,
         bitmapInfo: alpha.rawValue
     ) else {
         fatalError("Could not prepare fixture \(name)")
@@ -152,6 +158,10 @@ write("outside-safe-circle.png", size: 1024, alpha: .noneSkipLast) { context in
     context.setFillColor(red: 0.1, green: 0.1, blue: 0.1, alpha: 1)
     context.fill(CGRect(x: 900, y: 40, width: 40, height: 40))
 }
+// An opaque 8-bit grayscale copy, which only the 8-bit RGB guard rejects.
+write("grayscale.png", size: 1024, alpha: .none, space: CGColorSpaceCreateDeviceGray()) { context in
+    context.draw(icon, in: full)
+}
 // The icon's top-left background pixel stretched over the whole canvas.
 write("no-mark.png", size: 1024, alpha: .noneSkipLast) { context in
     guard let corner = icon.cropping(to: CGRect(x: 0, y: 0, width: 1, height: 1)) else {
@@ -178,5 +188,6 @@ expect_rejection with-alpha.png 'alpha channel is not allowed'
 expect_rejection wrong-size.png 'expected 1024x1024, got 512x512'
 expect_rejection outside-safe-circle.png 'mark pixel outside the safe circle'
 expect_rejection no-mark.png 'icon is a flat background with no mark'
+expect_rejection grayscale.png 'expected 8-bit RGB'
 
 echo "app-icon-test: PASS"
