@@ -29,7 +29,6 @@ struct ScaleSessionSection: View {
                         .foregroundStyle(.secondary)
                         .accessibilityIdentifier("plate.scale.status")
                 }
-                .accessibilityElement(children: .combine)
                 Button("End scale session", systemImage: "stop.circle") { onEnd() }
                     .accessibilityLabel("End scale session")
                     .accessibilityHint("Foods you pick go back to the quantity step.")
@@ -115,10 +114,14 @@ struct ScaleReadingSheet: View {
 
                 if let prompt {
                     Section {
-                        Label(prompt, systemImage: "exclamationmark.triangle")
-                            .foregroundStyle(.orange)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .accessibilityIdentifier("scale.prompt")
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Image(systemName: "exclamationmark.triangle")
+                                .accessibilityHidden(true)
+                            Text(prompt)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .accessibilityIdentifier("scale.prompt")
+                        }
+                        .foregroundStyle(.orange)
                     }
                 }
             }

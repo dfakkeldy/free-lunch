@@ -13,7 +13,7 @@ final class ScaleSessionUITests: XCTestCase {
         let app = launchWithSeededFoods()
 
         startCumulativeSession(in: app)
-        XCTAssertEqual(app.staticTexts["plate.scale.status"].label, "Tare the empty bowl once, then add food")
+        XCTAssertEqual(app.staticTexts["plate.scale.status"].firstMatch.label, "Tare the empty bowl once, then add food")
 
         // Item 1: the scale reads 80 g → 80 g of oats = 320 kcal.
         pick("Synthetic oats", in: app)
@@ -22,7 +22,7 @@ final class ScaleSessionUITests: XCTestCase {
         app.buttons["scale.add"].tap()
         XCTAssertTrue(app.textFields["scale.reading"].waitForNonExistence(timeout: 10))
         XCTAssertEqual(app.staticTexts["plate.total"].label, "320 kcal")
-        XCTAssertEqual(app.staticTexts["plate.scale.status"].label, "Scale showed 80 g")
+        XCTAssertEqual(app.staticTexts["plate.scale.status"].firstMatch.label, "Scale showed 80 g")
 
         // Item 2: no tare, the scale now reads 280 g → 280 − 80 = 200 g of
         // yogurt = 100 kcal; the plate is 420 kcal.
@@ -32,7 +32,7 @@ final class ScaleSessionUITests: XCTestCase {
         app.buttons["scale.add"].tap()
         XCTAssertTrue(app.textFields["scale.reading"].waitForNonExistence(timeout: 10))
         XCTAssertEqual(app.staticTexts["plate.total"].label, "420 kcal")
-        XCTAssertEqual(app.staticTexts["plate.scale.status"].label, "Scale showed 280 g")
+        XCTAssertEqual(app.staticTexts["plate.scale.status"].firstMatch.label, "Scale showed 280 g")
 
         // Both items carry the scale glyph, with their per-item grams.
         let scaleRows = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Scale' AND label CONTAINS 'kcal'"))
@@ -63,7 +63,7 @@ final class ScaleSessionUITests: XCTestCase {
         app.buttons["scale.cancel"].tap()
         XCTAssertTrue(app.textFields["scale.reading"].waitForNonExistence(timeout: 10))
         XCTAssertEqual(app.staticTexts["plate.total"].label, "420 kcal")
-        XCTAssertEqual(app.staticTexts["plate.scale.status"].label, "Scale showed 280 g")
+        XCTAssertEqual(app.staticTexts["plate.scale.status"].firstMatch.label, "Scale showed 280 g")
         XCTAssertEqual(scaleRows.count, 2)
     }
 
@@ -116,6 +116,7 @@ final class ScaleSessionUITests: XCTestCase {
     @MainActor
     private func startCumulativeSession(in app: XCUIApplication) {
         let start = app.buttons["plate.scale.startCumulative"]
+        reveal(start, in: app)
         XCTAssertTrue(start.waitForExistence(timeout: 10))
         XCTAssertEqual(start.label, "Start cumulative scale session")
         start.tap()
@@ -125,6 +126,7 @@ final class ScaleSessionUITests: XCTestCase {
     @MainActor
     private func pick(_ food: String, in app: XCUIApplication) {
         let search = app.textFields["plate.search"]
+        reveal(search, in: app)
         XCTAssertTrue(search.waitForExistence(timeout: 5))
         search.tap()
         search.typeText(food)
@@ -132,6 +134,22 @@ final class ScaleSessionUITests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         XCTAssertTrue(row.label.contains(food))
         row.tap()
+    }
+
+    /// Scrolls the plate list up until `element` can be tapped. The drag
+    /// starts low on the screen: the plate header pinned at the top is not
+    /// part of the list.
+    @MainActor
+    private func reveal(_ element: XCUIElement, in app: XCUIApplication) {
+        let list = app.collectionViews.firstMatch
+        guard list.waitForExistence(timeout: 10) else { return }
+        var attempts = 0
+        while !(element.exists && element.isHittable), attempts < 8 {
+            let from = list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.78))
+            let to = list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35))
+            from.press(forDuration: 0.05, thenDragTo: to)
+            attempts += 1
+        }
     }
 
     @MainActor
