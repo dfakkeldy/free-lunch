@@ -14,7 +14,7 @@ import SwiftData
 
 @MainActor
 public final class SwiftDataStore: FreeLunchStore {
-    private let context: ModelContext
+    let context: ModelContext
 
     /// Internal: `ModelContainer` never appears in a public signature (see
     /// Schema/FreeLunchContainer.swift). Tests reach it through
@@ -612,7 +612,7 @@ public final class SwiftDataStore: FreeLunchStore {
 
     // MARK: - Helpers
 
-    private func commit() throws {
+    func commit() throws {
         do {
             try context.save()
         } catch {
