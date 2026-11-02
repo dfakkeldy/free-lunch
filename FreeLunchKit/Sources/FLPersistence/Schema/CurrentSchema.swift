@@ -31,3 +31,4 @@ typealias JournalEntry = FreeLunchSchemaCurrent.JournalEntry
 typealias FormulaVersion = FreeLunchSchemaCurrent.FormulaVersion
 typealias TargetPeriod = FreeLunchSchemaCurrent.TargetPeriod
 typealias RecentFoodSnapshot = FreeLunchSchemaCurrent.RecentFoodSnapshot
+typealias WatchOutboxRecord = FreeLunchSchemaCurrent.WatchOutboxRecord
