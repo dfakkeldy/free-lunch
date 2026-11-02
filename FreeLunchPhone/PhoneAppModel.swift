@@ -19,6 +19,8 @@ final class PhoneAppModel {
         static let inMemoryStore = "-FLUITestInMemoryStore"
         /// Seed one draft plate with one synthetic ad-hoc item.
         static let seedDraft = "-FLUITestSeedDraft"
+        /// Seed two synthetic catalog foods for the weighing-flow tests.
+        static let seedFoods = "-FLUITestSeedFoods"
     }
 
     private(set) var flow = PlateFlow()
@@ -26,6 +28,9 @@ final class PhoneAppModel {
     private(set) var foods: [FoodItemData] = []
     private(set) var loggedToday: NutritionTotals = .zero
     private(set) var target: DailyTarget?
+    /// The weigh-as-you-go session of each open plate (spec §2). In memory
+    /// only: it ends when the plate closes or is logged.
+    private(set) var scaleSessions: [UUID: PlateScaleSession] = [:]
     var errorMessage: String?
 
     private let store: SwiftDataStore?
@@ -49,6 +54,9 @@ final class PhoneAppModel {
         }
         if arguments.contains(LaunchArgument.seedDraft) {
             seedSyntheticDraft()
+        }
+        if arguments.contains(LaunchArgument.seedFoods) {
+            seedSyntheticFoods()
         }
         reload()
     }
@@ -126,6 +134,7 @@ final class PhoneAppModel {
 
     func closePlate() {
         flow.closePlate()
+        scaleSessions.removeAll()
         reload()
     }
 
@@ -138,7 +147,14 @@ final class PhoneAppModel {
     func addCatalogItem(_ step: QuantityStep, to mealID: UUID) {
         guard let grams = step.resolvedGrams else { return }
         perform {
-            try service?.addCatalogItem(foodID: step.foodID, quantity: grams, toMeal: mealID)
+            // Add-then-weigh: a gram reading is `.scaleWeighed`, a picked
+            // serving `.typed` (spec §2 "Weighing flows").
+            try service?.addCatalogItem(
+                foodID: step.foodID,
+                quantity: grams,
+                provenance: step.provenance,
+                toMeal: mealID
+            )
             reload()
         }
     }
@@ -149,6 +165,7 @@ final class PhoneAppModel {
                 name: name,
                 quantity: grams,
                 nutrition: nutrition,
+                provenance: .typed,
                 toMeal: mealID,
                 saveAsFoodID: saveAsFood ? UUID() : nil
             )
@@ -160,6 +177,41 @@ final class PhoneAppModel {
         perform {
             try service?.setItemQuantity(grams, itemID: itemID)
             reload()
+        }
+    }
+
+    // MARK: Scale session (weigh-as-you-go)
+
+    func scaleSession(for mealID: UUID) -> PlateScaleSession? {
+        scaleSessions[mealID]
+    }
+
+    func startScaleSession(_ mode: ScaleSessionMode, on mealID: UUID) {
+        scaleSessions[mealID] = PlateScaleSession(mode: mode)
+    }
+
+    func endScaleSession(on mealID: UUID) {
+        scaleSessions[mealID] = nil
+    }
+
+    /// Turns one scale reading into a `.scaleWeighed` item of `foodID`.
+    /// Returns nil when the item was added, or the prompt to re-enter the
+    /// reading. A refused reading writes nothing and leaves the session's
+    /// running total where it was (spec §2 acceptance #3).
+    func addScaleReading(_ reading: Double, foodID: UUID, to mealID: UUID) -> String? {
+        guard var session = scaleSessions[mealID] else { return "The scale session has ended." }
+        guard let service else { return "The food log isn't available." }
+        do {
+            try session.add(reading: reading) { grams, provenance in
+                try service.addCatalogItem(foodID: foodID, quantity: grams, provenance: provenance, toMeal: mealID)
+            }
+            scaleSessions[mealID] = session
+            reload()
+            return nil
+        } catch let error as ScaleEntryError {
+            return ScaleSessionText.prompt(for: error, mode: session.mode)
+        } catch {
+            return "Couldn't add the item: \(error)"
         }
     }
 
@@ -183,6 +235,7 @@ final class PhoneAppModel {
         perform {
             guard let service else { return }
             let logged = try service.log(mealID: mealID)
+            scaleSessions[mealID] = nil
             reload()
             let day = logged.loggedAt ?? Date()
             let dayTotals = try service.dayTotals(containing: day, calendar: calendar)
@@ -220,6 +273,22 @@ final class PhoneAppModel {
             try action()
         } catch {
             errorMessage = "\(error)"
+        }
+    }
+
+    private func seedSyntheticFoods() {
+        perform {
+            guard let store else { return }
+            try store.createFood(FoodItemData(
+                name: "Synthetic oats",
+                per100g: NutritionValues(kcal: Kilocalories(400), protein: Grams(10), carbs: Grams(60), fat: Grams(8)),
+                origin: .custom
+            ))
+            try store.createFood(FoodItemData(
+                name: "Synthetic yogurt",
+                per100g: NutritionValues(kcal: Kilocalories(50), protein: Grams(4), carbs: Grams(5), fat: Grams(2)),
+                origin: .custom
+            ))
         }
     }
 

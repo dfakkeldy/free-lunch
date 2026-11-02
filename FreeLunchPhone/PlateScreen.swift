@@ -18,6 +18,7 @@ struct PlateScreen: View {
     @State private var quantityStep: QuantityStep?
     @State private var adHocMode: AdHocEntrySheet.Mode?
     @State private var editingItem: MealItemData?
+    @State private var scaleReading: ScaleReadingRequest?
 
     var body: some View {
         if let meal = model.meal(id: mealID) {
@@ -48,6 +49,12 @@ struct PlateScreen: View {
                     }
                 }
             }
+
+            ScaleSessionSection(
+                session: model.scaleSession(for: meal.id),
+                onStart: { model.startScaleSession($0, on: meal.id) },
+                onEnd: { model.endScaleSession(on: meal.id) }
+            )
 
             Section("Add") {
                 TextField("Search foods", text: $query)
@@ -108,6 +115,15 @@ struct PlateScreen: View {
                 query = ""
             }
         }
+        .sheet(item: $scaleReading) { request in
+            if let session = model.scaleSession(for: meal.id) {
+                ScaleReadingSheet(request: request, session: session) { reading in
+                    let refusal = model.addScaleReading(reading, foodID: request.foodID, to: meal.id)
+                    if refusal == nil { query = "" }
+                    return refusal
+                }
+            }
+        }
         .sheet(item: $editingItem) { item in
             EditQuantitySheet(item: item, name: model.rows(for: meal).first { $0.id == item.id }?.name ?? "") { grams in
                 model.setQuantity(grams, itemID: item.id)
@@ -121,7 +137,14 @@ struct PlateScreen: View {
         case let .food(food, _, prefill):
             Button {
                 let info = model.foodInfo(id: food.id) ?? PlateFoodInfo(name: food.name)
-                quantityStep = QuantityStep(foodID: food.id, food: info, prefillGrams: prefill)
+                // While a scale session runs, a food takes the next reading
+                // (weigh-as-you-go); otherwise the quantity step
+                // (add-then-weigh).
+                if model.scaleSession(for: mealID) != nil {
+                    scaleReading = ScaleReadingRequest(foodID: food.id, foodName: info.name)
+                } else {
+                    quantityStep = QuantityStep(foodID: food.id, food: info, prefillGrams: prefill)
+                }
             } label: {
                 HStack {
                     Text(food.name)
