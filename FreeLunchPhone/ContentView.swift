@@ -2,21 +2,12 @@
 
 import SwiftUI
 
+/// The phone's root: the timeline stand-in, which owns the way into the
+/// plate screen (spec §2). The empty state lives in `TimelineStubView`.
 struct ContentView: View {
+    @State private var model = PhoneAppModel()
+
     var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "fork.knife")
-                .font(.largeTitle)
-                .accessibilityHidden(true)
-
-            Text("Nothing logged yet")
-                .font(.title3)
-                .accessibilityIdentifier("phone.emptyState.heading")
-
-            Text("Your plate will show up here.")
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
+        TimelineStubView(model: model)
     }
 }
