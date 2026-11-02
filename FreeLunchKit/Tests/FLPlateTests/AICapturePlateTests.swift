@@ -49,8 +49,52 @@ struct AICapturePlateTests {
 
         await AICaptureRunner.run(provider: testProvider(.data(onlineResponse)), recordID: recordID, newItemIDs: [id(15)], on: &plate)
         #expect(plate.records[0].status == .complete)
+        #expect(plate.records[0].providerTier == 9)
+        #expect(plate.records[0].modelID == "test-model")
         #expect(plate.items.last?.name == "online")
         #expect(plate.items.last?.provenance == .aiEstimate)
+    }
+
+    @Test("runner routes label responses to drafts without changing the plate")
+    func runnerHandlesLabelResponses() async {
+        var plate = CapturePlate(items: [manualItem(id: id(16), name: "manual")])
+        plate.parkCapture(recordID: id(17), createdAt: Date(timeIntervalSince1970: 2), kind: .label, photoID: nil, hint: nil, providerTier: 1, modelID: "old")
+        let beforeItems = plate.items
+
+        let draft = await AICaptureRunner.runLabel(provider: testProvider(.data(validLabelResponse)), recordID: id(17), on: &plate)
+        #expect(draft?.name == "Synthetic Label")
+        #expect(draft?.origin == .labelOCR)
+        #expect(draft?.per100g.kcal == 400)
+        #expect(draft?.per100g.proteinG == 20)
+        #expect(draft?.per100g.carbsG == 40)
+        #expect(draft?.per100g.fatG == 16)
+        #expect(plate.records[0].status == .complete)
+        #expect(plate.records[0].providerTier == 9)
+        #expect(plate.records[0].modelID == "test-model")
+        #expect(plate.items == beforeItems)
+        #expect(plate.state == .draft)
+
+        plate.parkCapture(recordID: id(18), createdAt: Date(timeIntervalSince1970: 2), kind: .label, photoID: nil, hint: nil, providerTier: 1, modelID: "old")
+        #expect(await AICaptureRunner.runLabel(provider: testProvider(.data(Data("garbage".utf8))), recordID: id(18), on: &plate) == nil)
+        #expect(plate.records[1].status == .failed)
+        #expect(plate.records[1].failure != nil)
+
+        plate.parkCapture(recordID: id(19), createdAt: Date(timeIntervalSince1970: 2), kind: .label, photoID: nil, hint: nil, providerTier: 1, modelID: "old")
+        #expect(await AICaptureRunner.runLabel(provider: testProvider(.failure(.offline)), recordID: id(19), on: &plate) == nil)
+        #expect(plate.records[2].status == .pending)
+    }
+
+    @Test("meal runner does not call providers for label records")
+    func mealRunnerSkipsLabelRecords() async {
+        let counter = ProviderCallCounter()
+        var plate = CapturePlate()
+        plate.parkCapture(recordID: id(20), createdAt: Date(timeIntervalSince1970: 3), kind: .label, photoID: nil, hint: nil, providerTier: 1, modelID: "old")
+
+        await AICaptureRunner.run(provider: CountingProvider(counter: counter, data: onlineResponse), recordID: id(20), newItemIDs: [id(21)], on: &plate)
+
+        let calls = await counter.value()
+        #expect(calls == 0)
+        #expect(plate.records[0].status == .pending)
     }
 
     @Test("garbage provider data fails the record without appending an item")
@@ -166,6 +210,82 @@ struct AICapturePlateTests {
         #expect(plate.items == beforeFailure)
     }
 
+    @Test("failed reruns retain the accepted raw response")
+    func failedRerunRetainsPreviousResponse() {
+        var plate = CapturePlate()
+        plate.parkCapture(recordID: id(83), createdAt: Date(timeIntervalSince1970: 6), kind: .meal, photoID: nil, hint: nil, providerTier: 1, modelID: "m")
+        plate.applyResponse(editableAIResponse, toRecord: id(83), newItemIDs: [id(84)])
+        let acceptedResponse = plate.records[0].responseJSON
+
+        plate.addCorrection("retry", toRecord: id(83))
+        plate.applyResponse(Data("garbage".utf8), toRecord: id(83), newItemIDs: [id(85)])
+
+        #expect(plate.records[0].status == .failed)
+        #expect(plate.records[0].responseJSON == acceptedResponse)
+    }
+
+    @Test("renamed and nutrition-edited AI items win matching reruns")
+    func editedNameAndNutritionSurviveRerun() {
+        var plate = CapturePlate()
+        plate.parkCapture(recordID: id(86), createdAt: Date(timeIntervalSince1970: 6), kind: .meal, photoID: nil, hint: nil, providerTier: 1, modelID: "m")
+        plate.applyResponse(editableAIResponse, toRecord: id(86), newItemIDs: [id(87)])
+        let editedNutrition = NutritionValues(kcal: Kilocalories(321), protein: Grams(12), carbs: Grams(34), fat: Grams(5), fiber: Grams(2))
+        plate.rename(itemID: id(87), to: "  Renamed entrée  ")
+        plate.setNutrition(itemID: id(87), editedNutrition)
+        let edited = plate.items[0]
+        plate.setNutrition(itemID: id(87), NutritionValues(kcal: Kilocalories(-1), protein: Grams(0), carbs: Grams(0), fat: Grams(0)))
+        #expect(plate.items[0] == edited)
+
+        plate.addCorrection("keep my edit", toRecord: id(86))
+        plate.applyResponse(renamedItemResponse, toRecord: id(86), newItemIDs: [id(88)])
+
+        #expect(plate.items == [edited])
+        #expect(plate.items[0].name == "Renamed entrée")
+        #expect(plate.items[0].nutrition == editedNutrition)
+        #expect(plate.items[0].userEdited)
+        #expect(plate.items[0].provenance == .aiEstimate)
+        #expect(plate.items[0].aiRecordID == id(86))
+        #expect(plate.items[0].confidence == 0.8)
+    }
+
+    @Test("removed AI names do not return on rerun while remaining slots replace in place")
+    func removedAIItemsStayRemoved() {
+        var plate = CapturePlate()
+        plate.parkCapture(recordID: id(89), createdAt: Date(timeIntervalSince1970: 6), kind: .meal, photoID: nil, hint: nil, providerTier: 1, modelID: "m")
+        plate.applyResponse(twoItemResponse, toRecord: id(89), newItemIDs: [id(90), id(91)])
+        plate.removeItem(id: id(90))
+
+        plate.addCorrection("remove first", toRecord: id(89))
+        plate.applyResponse(removedItemRerunResponse, toRecord: id(89), newItemIDs: [id(92), id(93)])
+
+        #expect(plate.items.map(\.name) == ["Updated second"])
+        #expect(plate.items[0].id == id(91))
+    }
+
+    @Test("missing generated item IDs do not reject a valid response")
+    func responseGeneratesMissingItemIDs() {
+        var plate = CapturePlate()
+        plate.parkCapture(recordID: id(94), createdAt: Date(timeIntervalSince1970: 6), kind: .meal, photoID: nil, hint: nil, providerTier: 1, modelID: "m")
+        plate.applyResponse(twoItemResponse, toRecord: id(94), newItemIDs: [id(95)])
+
+        #expect(plate.records[0].status == .complete)
+        #expect(plate.items.count == 2)
+        #expect(plate.items[0].id == id(95))
+        #expect(plate.items[1].id != id(95))
+    }
+
+    @Test("cancelled providers leave records pending and plates unchanged")
+    func cancelledProviderLeavesPending() async {
+        var plate = CapturePlate(items: [manualItem(id: id(96), name: "manual")])
+        plate.parkCapture(recordID: id(97), createdAt: Date(timeIntervalSince1970: 6), kind: .meal, photoID: nil, hint: nil, providerTier: 1, modelID: "m")
+        let before = plate
+
+        await AICaptureRunner.run(provider: testProvider(.cancelled), recordID: id(97), newItemIDs: [id(98)], on: &plate)
+
+        #expect(plate == before)
+        #expect(plate.records[0].status == .pending)
+    }
+
     @Test("rerunning one record does not touch another record")
     func recordsRemainIsolated() {
         var plate = CapturePlate()
@@ -190,6 +310,7 @@ struct AICapturePlateTests {
 private enum TestProviderOutcome: Sendable {
     case data(Data)
     case failure(AICaptureProviderError)
+    case cancelled
 }
 
 private struct TestProvider: AICaptureProvider {
@@ -201,7 +322,32 @@ private struct TestProvider: AICaptureProvider {
         switch outcome {
         case .data(let data): data
         case .failure(let error): throw error
+        case .cancelled: throw CancellationError()
         }
+    }
+}
+
+private actor ProviderCallCounter {
+    private var calls = 0
+
+    func recordCall() {
+        calls += 1
+    }
+
+    func value() -> Int {
+        calls
+    }
+}
+
+private struct CountingProvider: AICaptureProvider {
+    let counter: ProviderCallCounter
+    let data: Data
+    let tier = 9
+    let modelID = "test-model"
+
+    func estimate(_ request: AICaptureRequest) async throws -> Data {
+        await counter.recordCall()
+        return data
     }
 }
 
@@ -230,6 +376,18 @@ private let singleXResponse = json("""
 """)
 private let editableAIResponse = json("""
 {"items":[{"name":"x","estPortionGrams":150,"kcal":300,"protein":12,"carbs":30,"fat":10,"confidence":0.8}],"note":"x"}
+""")
+private let validLabelResponse = json("""
+{"name":"Synthetic Label","servingSizeGrams":25,"kcal":100,"protein":5,"carbs":10,"fat":4}
+""")
+private let renamedItemResponse = json("""
+{"items":[{"name":"renamed entrée","estPortionGrams":200,"kcal":1,"protein":1,"carbs":1,"fat":1,"confidence":0.1}],"note":"x"}
+""")
+private let twoItemResponse = json("""
+{"items":[{"name":"First","estPortionGrams":10,"kcal":10,"protein":1,"carbs":1,"fat":1,"confidence":0.5},{"name":"Second","estPortionGrams":20,"kcal":20,"protein":2,"carbs":2,"fat":2,"confidence":0.6}],"note":"x"}
+""")
+private let removedItemRerunResponse = json("""
+{"items":[{"name":" first ","estPortionGrams":100,"kcal":100,"protein":10,"carbs":10,"fat":10,"confidence":0.1},{"name":"Updated second","estPortionGrams":30,"kcal":30,"protein":3,"carbs":3,"fat":3,"confidence":0.7}],"note":"x"}
 """)
 private let rerunTwoResponse = json("""
 {"items":[{"name":"N1","estPortionGrams":10,"kcal":10,"protein":1,"carbs":1,"fat":1,"confidence":0.5},{"name":"N2","estPortionGrams":20,"kcal":20,"protein":2,"carbs":2,"fat":2,"confidence":0.6}],"note":"x"}

@@ -45,13 +45,13 @@ public struct AIEstimationRecordData: Sendable, Hashable, Codable, Identifiable 
 
 public struct CapturePlateItem: Sendable, Hashable, Identifiable {
     public let id: UUID
-    public var name: String
-    public var quantityGrams: Double
-    public var nutrition: NutritionValues
+    public internal(set) var name: String
+    public internal(set) var quantityGrams: Double
+    public internal(set) var nutrition: NutritionValues
     public let provenance: ItemProvenance
     public let aiRecordID: UUID?
     public let confidence: Double?
-    public var userEdited: Bool
+    public internal(set) var userEdited: Bool
 
     public init(
         id: UUID,
@@ -75,9 +75,10 @@ public struct CapturePlateItem: Sendable, Hashable, Identifiable {
 }
 
 public struct CapturePlate: Sendable, Hashable {
-    public var state: MealState
+    public internal(set) var state: MealState
     public var items: [CapturePlateItem]
     public var records: [AIEstimationRecordData]
+    private var removedAIItemNames: [UUID: Set<String>] = [:]
 
     public init(state: MealState = .draft, items: [CapturePlateItem] = [], records: [AIEstimationRecordData] = []) {
         self.state = state
@@ -111,6 +112,7 @@ public struct CapturePlate: Sendable, Hashable {
     }
 
     /// Applies a fully parsed meal result atomically; failures leave items untouched.
+    /// When fewer item IDs are supplied than response items, new UUIDs are generated for the remainder.
     public mutating func applyResponse(_ data: Data, toRecord recordID: UUID, newItemIDs: [UUID]) {
         guard let recordIndex = records.firstIndex(where: { $0.id == recordID }),
               records[recordIndex].kind == .meal
@@ -120,11 +122,10 @@ public struct CapturePlate: Sendable, Hashable {
         case .failure(let failure):
             failRecord(at: recordIndex, with: failure)
         case .success(let response):
-            guard newItemIDs.count >= response.items.count else {
-                failRecord(at: recordIndex, with: .providerFailed)
-                return
+            let resolvedItemIDs = response.items.indices.map { index in
+                index < newItemIDs.count ? newItemIDs[index] : UUID()
             }
-            applyMealResponse(response, rawData: data, recordID: recordID, recordIndex: recordIndex, newItemIDs: newItemIDs)
+            applyMealResponse(response, rawData: data, recordID: recordID, recordIndex: recordIndex, newItemIDs: resolvedItemIDs)
         }
     }
 
@@ -167,11 +168,39 @@ public struct CapturePlate: Sendable, Hashable {
         items[index].userEdited = true
     }
 
+    /// Renames an item while preserving its permanent provenance (spec §2).
+    public mutating func rename(itemID: UUID, to name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              let index = items.firstIndex(where: { $0.id == itemID })
+        else { return }
+        items[index].name = trimmed
+        items[index].userEdited = true
+    }
+
+    /// Replaces nutrition values while preserving its permanent provenance (spec §2).
+    public mutating func setNutrition(itemID: UUID, _ nutrition: NutritionValues) {
+        guard nutrition.kcal.isFinite, nutrition.kcal >= 0,
+              nutrition.proteinG.isFinite, nutrition.proteinG >= 0,
+              nutrition.carbsG.isFinite, nutrition.carbsG >= 0,
+              nutrition.fatG.isFinite, nutrition.fatG >= 0,
+              nutrition.fiberG?.isFinite ?? true,
+              nutrition.fiberG.map({ $0 >= 0 }) ?? true,
+              let index = items.firstIndex(where: { $0.id == itemID })
+        else { return }
+        items[index].nutrition = nutrition
+        items[index].userEdited = true
+    }
+
     public mutating func addManualItem(_ item: CapturePlateItem) {
         items.append(item)
     }
 
     public mutating func removeItem(id: UUID) {
+        guard let item = items.first(where: { $0.id == id }) else { return }
+        if let recordID = item.aiRecordID {
+            removedAIItemNames[recordID, default: []].insert(normalizedCaptureName(item.name))
+        }
         items.removeAll { $0.id == id }
     }
 
@@ -187,7 +216,6 @@ public struct CapturePlate: Sendable, Hashable {
     mutating func failRecord(at index: Int, with failure: AICaptureFailure) {
         records[index].status = .failed
         records[index].failure = failure
-        records[index].responseJSON = nil
     }
 
     private mutating func applyMealResponse(
@@ -198,8 +226,9 @@ public struct CapturePlate: Sendable, Hashable {
         newItemIDs: [UUID]
     ) {
         let existingIndices = items.indices.filter { items[$0].aiRecordID == recordID }
+        let removedNames = removedAIItemNames[recordID, default: []]
         if existingIndices.isEmpty {
-            for (index, item) in response.items.enumerated() {
+            for (index, item) in response.items.enumerated() where !removedNames.contains(normalizedCaptureName(item.name)) {
                 items.append(captureItem(from: item, id: newItemIDs[index], recordID: recordID))
             }
         } else {
@@ -210,6 +239,8 @@ public struct CapturePlate: Sendable, Hashable {
         records[recordIndex].failure = nil
     }
 
+    /// Matches names case-insensitively after trimming whitespace. If an edited item is renamed,
+    /// a re-run using a different name can add that new name alongside the edited item.
     private mutating func replaceRerunItems(
         _ responseItems: [AICaptureItem],
         recordID: UUID,
@@ -219,7 +250,11 @@ public struct CapturePlate: Sendable, Hashable {
         let protectedNames = Set(existingIndices.compactMap { index in
             items[index].userEdited ? normalizedCaptureName(items[index].name) : nil
         })
-        let candidates = responseItems.enumerated().filter { !protectedNames.contains(normalizedCaptureName($0.element.name)) }
+        let removedNames = removedAIItemNames[recordID, default: []]
+        let candidates = responseItems.enumerated().filter {
+            let name = normalizedCaptureName($0.element.name)
+            return !protectedNames.contains(name) && !removedNames.contains(name)
+        }
         let lastRecordIndex = existingIndices.last!
         var candidateOffset = 0
         var rebuilt: [CapturePlateItem] = []
@@ -269,13 +304,37 @@ public struct CapturePlate: Sendable, Hashable {
 }
 
 public enum AICaptureRunner {
+    /// Runs only meal records. Use ``runLabel(provider:recordID:on:)`` for label records.
     public static func run(
         provider: some AICaptureProvider,
         recordID: UUID,
         newItemIDs: [UUID],
         on plate: inout CapturePlate
     ) async {
-        guard let record = plate.records.first(where: { $0.id == recordID }) else { return }
+        guard let record = plate.records.first(where: { $0.id == recordID }), record.kind == .meal,
+              let data = await responseData(provider: provider, record: record, recordID: recordID, on: &plate)
+        else { return }
+        plate.applyResponse(data, toRecord: recordID, newItemIDs: newItemIDs)
+    }
+
+    /// Runs a label record and returns its draft without adding an item to the plate.
+    public static func runLabel(
+        provider: some AICaptureProvider,
+        recordID: UUID,
+        on plate: inout CapturePlate
+    ) async -> FoodItemDraft? {
+        guard let record = plate.records.first(where: { $0.id == recordID }), record.kind == .label,
+              let data = await responseData(provider: provider, record: record, recordID: recordID, on: &plate)
+        else { return nil }
+        return plate.applyLabelResponse(data, toRecord: recordID)
+    }
+
+    private static func responseData(
+        provider: some AICaptureProvider,
+        record: AIEstimationRecordData,
+        recordID: UUID,
+        on plate: inout CapturePlate
+    ) async -> Data? {
         let request = AICaptureRequest(
             kind: record.kind,
             photoID: record.photoID,
@@ -284,14 +343,17 @@ public enum AICaptureRunner {
         )
         do {
             let data = try await provider.estimate(request)
+            guard !Task.isCancelled else { return nil }
             updateProviderMetadata(recordID: recordID, provider: provider, on: &plate)
-            plate.applyResponse(data, toRecord: recordID, newItemIDs: newItemIDs)
+            return data
         } catch let error as AICaptureProviderError where error == .offline {
-            return
+            return nil
         } catch {
+            guard !(error is CancellationError), !Task.isCancelled else { return nil }
             updateProviderMetadata(recordID: recordID, provider: provider, on: &plate)
-            guard let index = plate.records.firstIndex(where: { $0.id == recordID }) else { return }
+            guard let index = plate.records.firstIndex(where: { $0.id == recordID }) else { return nil }
             plate.failRecord(at: index, with: .providerFailed)
+            return nil
         }
     }
 
