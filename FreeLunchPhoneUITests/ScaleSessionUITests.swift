@@ -129,9 +129,12 @@ final class ScaleSessionUITests: XCTestCase {
         reveal(search, in: app)
         XCTAssertTrue(search.waitForExistence(timeout: 5))
         search.tap()
-        search.typeText(food)
+        // Return ends editing, so the keyboard no longer covers the
+        // results at large text sizes.
+        search.typeText(food + "\n")
         let row = app.buttons["plate.typeahead.food"].firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 5))
+        reveal(row, in: app)
         XCTAssertTrue(row.label.contains(food))
         row.tap()
     }
