@@ -57,7 +57,7 @@ enum FormulaOriginCoding {
 
     static func origin(kind: String, builtinID: String?) -> FormulaOrigin? {
         switch kind {
-        case "builtin": builtinID.map { .builtin($0) }
+        case "builtin": builtinID.map { FormulaOrigin.builtin($0) }
         case "userEdited": .userEdited
         case "imported": .imported
         default: nil

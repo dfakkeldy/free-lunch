@@ -165,11 +165,12 @@ struct CascadeAndArchiveTests {
 
         // Second item references a missing food: nothing of the meal lands.
         let bad = MealEntryData(
-            id: uid(290), createdAt: at(day: 1), hunger: 2,
+            id: uid(290), createdAt: at(day: 1),
             items: [
                 MealItemData(id: uid(291), order: 0, foodID: rice, quantity: Grams(10), nutrition: nutrition(13, 0.25, 2.8, 0.025), provenance: .typed),
                 MealItemData(id: uid(292), order: 1, foodID: uid(999), quantity: Grams(10), nutrition: nutrition(1, 0, 0, 0), provenance: .typed)
             ],
+            hunger: 2,
             source: .phone
         )
         #expect(throws: FreeLunchStoreError.missingFood(uid(999))) { try store.createMeal(bad) }
