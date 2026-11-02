@@ -233,7 +233,7 @@ struct AICapturePlateTests {
         plate.rename(itemID: id(87), to: "  Renamed entrée  ")
         plate.setNutrition(itemID: id(87), editedNutrition)
         let edited = plate.items[0]
-        plate.setNutrition(itemID: id(87), NutritionValues(kcal: Kilocalories(-1), protein: Grams(0), carbs: Grams(0), fat: Grams(0)))
+        plate.rename(itemID: id(87), to: "   ")
         #expect(plate.items[0] == edited)
 
         plate.addCorrection("keep my edit", toRecord: id(86))
