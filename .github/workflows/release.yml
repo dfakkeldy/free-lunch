@@ -153,9 +153,9 @@ jobs:
           elif [[ "$TAG" =~ ^fl-rc(0|[1-9][0-9]*)?$ ]]; then
             RC="${BASH_REMATCH[1]:-1}"
             MARKETING_VERSION="0.9.$((10#$RC))"
-          elif [[ "$TAG" =~ ^v([0-9]+\.[0-9]+)$ ]]; then
+          elif [[ "$TAG" =~ ^v((0|[1-9][0-9]*)\.(0|[1-9][0-9]*))$ ]]; then
             MARKETING_VERSION="${BASH_REMATCH[1]}.0"
-          elif [[ "$TAG" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+          elif [[ "$TAG" =~ ^v((0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*))$ ]]; then
             MARKETING_VERSION="${BASH_REMATCH[1]}"
           else
             echo "::error::Ref is not a known release tag (expected fl-m<N>, fl-rc<N>, v<X.Y> or v<X.Y.Z>)"
@@ -184,12 +184,20 @@ jobs:
           TAG: ${{ steps.version.outputs.tag }}
         run: |
           set -euo pipefail
-          Scripts/release-notes.sh "$TAG" | tee "$RUNNER_TEMP/whats-new.txt"
+          # The annotation is text chosen by whoever pushes the tag. It
+          # goes to a file first, then to the log inside a
+          # ::stop-commands:: window (so a line starting with "::" is not
+          # run as a workflow command), and into the job summary as an
+          # indented code block (so it cannot close a fence).
+          Scripts/release-notes.sh "$TAG" > "$RUNNER_TEMP/whats-new.txt"
+          STOP_TOKEN="$(uuidgen)"
+          echo "::stop-commands::$STOP_TOKEN"
+          cat "$RUNNER_TEMP/whats-new.txt"
+          echo "::$STOP_TOKEN::"
           {
             echo "## What's new (from tag annotation)"
-            echo '```'
-            cat "$RUNNER_TEMP/whats-new.txt"
-            echo '```'
+            echo
+            sed 's/^/    /' "$RUNNER_TEMP/whats-new.txt"
           } >> "$GITHUB_STEP_SUMMARY"
 
       # Written with a restrictive umask so the key is never
