@@ -19,6 +19,11 @@ struct PlateScreen: View {
     @State private var adHocMode: AdHocEntrySheet.Mode?
     @State private var editingItem: MealItemData?
     @State private var scaleReading: ScaleReadingRequest?
+    @State private var loggedAtSheet: LoggedAtSheet.Purpose?
+    /// A time chosen in the Log-earlier sheet, logged once that sheet has
+    /// gone, so the plate pops and the post-log sheet presents only after
+    /// this screen's own sheet is dismissed.
+    @State private var pendingLogAt: Date?
 
     var body: some View {
         if let meal = model.meal(id: mealID) {
@@ -31,6 +36,21 @@ struct PlateScreen: View {
     private func plate(_ meal: MealEntryData) -> some View {
         let header = model.header(for: meal)
         return List {
+            if let loggedAtText = model.loggedAtText(for: meal), let loggedAt = meal.loggedAt {
+                Section("Logged") {
+                    Button {
+                        loggedAtSheet = .move(current: loggedAt)
+                    } label: {
+                        LabeledContent("Eaten", value: loggedAtText)
+                    }
+                    .foregroundStyle(.primary)
+                    .accessibilityLabel("Logged time")
+                    .accessibilityValue(loggedAtText)
+                    .accessibilityHint("Change when this plate was eaten")
+                    .accessibilityIdentifier("plate.loggedAt")
+                }
+            }
+
             Section("On the plate") {
                 let rows = model.rows(for: meal)
                 if rows.isEmpty {
@@ -84,17 +104,43 @@ struct PlateScreen: View {
         }
         .safeAreaInset(edge: .bottom) {
             if meal.state == .draft {
-                Button {
-                    model.log(mealID: meal.id)
-                } label: {
-                    Text("Log plate")
-                        .frame(maxWidth: .infinity)
+                HStack(spacing: 12) {
+                    // One tap logs at now: the unchanged default.
+                    Button {
+                        model.log(mealID: meal.id)
+                    } label: {
+                        Text("Log plate")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier("plate.log")
+
+                    // Late logging: pick an earlier date and time first.
+                    Button {
+                        loggedAtSheet = .log
+                    } label: {
+                        Image(systemName: "clock.arrow.circlepath")
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityLabel("Log at an earlier time")
+                    .accessibilityHint("Choose an earlier date and time before logging")
+                    .accessibilityIdentifier("plate.logEarlier")
                 }
-                .buttonStyle(.borderedProminent)
                 .controlSize(.large)
                 .padding()
                 .background(.bar)
-                .accessibilityIdentifier("plate.log")
+            }
+        }
+        .sheet(item: $loggedAtSheet, onDismiss: {
+            guard let date = pendingLogAt else { return }
+            pendingLogAt = nil
+            model.log(mealID: meal.id, at: date)
+        }) { purpose in
+            LoggedAtSheet(purpose: purpose, model: model) { date in
+                switch purpose {
+                case .log: pendingLogAt = date
+                case .move: model.moveLoggedMeal(meal.id, to: date)
+                }
             }
         }
         .sheet(item: $quantityStep) { step in

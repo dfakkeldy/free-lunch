@@ -231,16 +231,49 @@ final class PhoneAppModel {
 
     /// The explicit Log action: the only path from draft to logged. Pops
     /// the plate and presents the post-log sheet over the timeline.
-    func log(mealID: UUID) {
+    /// `at == nil` is the one-tap default, now; an earlier time logs the
+    /// plate late (spec §2 "Log"), and the sheet then speaks of that day
+    /// with that day's totals and target. A future time is refused.
+    func log(mealID: UUID, at chosen: Date? = nil) {
         perform {
             guard let service else { return }
-            let logged = try service.log(mealID: mealID)
+            let logged = try service.logPlate(mealID: mealID, at: chosen, calendar: calendar)
             scaleSessions[mealID] = nil
             reload()
-            let day = logged.loggedAt ?? Date()
-            let dayTotals = try service.dayTotals(containing: day, calendar: calendar)
-            flow.didLog(PostLogSummary(dayTotals: dayTotals, target: try dailyTarget(on: day)))
+            let day = logged.day.day
+            flow.didLog(PostLogSummary(
+                dayTotals: logged.day.totals,
+                target: try dailyTarget(on: day),
+                day: LoggedDay(loggedAt: day, now: Date(), calendar: calendar)
+            ))
         }
+    }
+
+    // MARK: Late logging
+
+    /// Edits a logged plate's `loggedAt` (spec §2: logged meals stay
+    /// editable). The plate moves to the new day and both days' totals are
+    /// recomputed from the store. No post-log sheet: only Log fires it.
+    func moveLoggedMeal(_ mealID: UUID, to loggedAt: Date) {
+        perform {
+            try service?.moveLoggedMeal(mealID: mealID, to: loggedAt, calendar: calendar)
+            reload()
+        }
+    }
+
+    /// "Yesterday, 12:30" for a logged plate; nil for a draft.
+    func loggedAtText(for meal: MealEntryData) -> String? {
+        guard meal.state == .logged, let loggedAt = meal.loggedAt else { return nil }
+        let day = LoggedDay(loggedAt: loggedAt, now: Date(), calendar: calendar)
+        return "\(day.name), \(loggedAt.formatted(date: .omitted, time: .shortened))"
+    }
+
+    func loggedDay(for date: Date, now: Date) -> LoggedDay {
+        LoggedDay(loggedAt: date, now: now, calendar: calendar)
+    }
+
+    func sameTimeYesterday(now: Date) -> Date {
+        LateLogTime.sameTimeYesterday(now: now, calendar: calendar)
     }
 
     // MARK: Private
@@ -271,6 +304,8 @@ final class PhoneAppModel {
     private func perform(_ action: () throws -> Void) {
         do {
             try action()
+        } catch LateLoggingError.loggedAtInFuture {
+            errorMessage = "A plate can't be logged at a time that hasn't happened yet."
         } catch {
             errorMessage = "\(error)"
         }
