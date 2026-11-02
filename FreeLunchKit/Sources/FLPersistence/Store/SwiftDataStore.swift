@@ -272,6 +272,64 @@ public final class SwiftDataStore: FreeLunchStore {
         return item
     }
 
+    @discardableResult
+    public func addAdHocItemSavingFood(
+        _ food: FoodItemData,
+        item input: MealItemInput,
+        toMeal mealID: UUID
+    ) throws -> MealItemData {
+        let meal = try editableMeal(id: mealID)
+        guard try model(FoodItem.self, id: food.id) == nil else {
+            throw FreeLunchStoreError.duplicateID(food.id)
+        }
+        guard try model(MealItem.self, id: input.id) == nil else {
+            throw FreeLunchStoreError.duplicateID(input.id)
+        }
+        guard case .adHoc(let name, let nutrition) = input.kind else {
+            throw FreeLunchStoreError.invalidItem(input.id)
+        }
+
+        let servings = try ServingsCoding.encode(food.servings)
+        let storedFood = FoodItem(
+            id: food.id,
+            name: food.name,
+            brand: food.brand,
+            kcal: food.per100g.kcal,
+            proteinG: food.per100g.proteinG,
+            carbsG: food.per100g.carbsG,
+            fatG: food.per100g.fatG,
+            fiberG: food.per100g.fiberG,
+            isLiquid: food.isLiquid,
+            servingsJSON: servings,
+            origin: food.origin,
+            useCount: food.useCount,
+            lastUsedAt: food.lastUsedAt,
+            lastPortionGrams: food.lastPortionGrams,
+            archivedAt: food.archivedAt
+        )
+        let order = (meal.items.map(\.order).max() ?? -1) + 1
+        let storedItem = makeItem(
+            MealItemData(
+                id: input.id,
+                order: order,
+                foodID: nil,
+                adHocName: name,
+                quantity: input.quantity,
+                nutrition: nutrition,
+                provenance: input.provenance,
+                aiRecordID: nil,
+                confidence: input.confidence
+            ),
+            food: nil,
+            aiRecord: nil
+        )
+        context.insert(storedFood)
+        context.insert(storedItem)
+        storedItem.meal = meal
+        try commit()
+        return storedItem.asData()
+    }
+
     public func removeItem(id: UUID) throws {
         guard let item = try model(MealItem.self, id: id) else {
             throw FreeLunchStoreError.notFound(id)
@@ -621,14 +679,14 @@ public final class SwiftDataStore: FreeLunchStore {
         }
     }
 
-    private func model<T: PersistentModel & IdentifiedByUUID>(_ type: T.Type, id: UUID) throws -> T? {
+    func model<T: PersistentModel & IdentifiedByUUID>(_ type: T.Type, id: UUID) throws -> T? {
         var descriptor = FetchDescriptor<T>(predicate: T.predicate(id: id))
         descriptor.fetchLimit = 1
         return try context.fetch(descriptor).first
     }
 
     /// A stored meal that may be edited: native, not imported.
-    private func editableMeal(id: UUID) throws -> MealEntry {
+    func editableMeal(id: UUID) throws -> MealEntry {
         guard let meal = try model(MealEntry.self, id: id) else {
             throw FreeLunchStoreError.notFound(id)
         }
@@ -651,6 +709,45 @@ public final class SwiftDataStore: FreeLunchStore {
     private func validateHunger(_ hunger: Int?) throws {
         if let hunger, !DomainScale.hunger.contains(hunger) {
             throw FreeLunchStoreError.invalidHunger(hunger)
+        }
+    }
+
+    /// Rebuild recency from logged history after a meal's timestamp moves.
+    /// The food's use count is unaffected because the meal remains logged.
+    func reconcileTypeaheadRecency(for foods: [FoodItem]) {
+        var seen: Set<UUID> = []
+        for food in foods where seen.insert(food.id).inserted {
+            var latest: (loggedAt: Date, mealID: String, order: Int, itemID: String, grams: Double)?
+            for item in food.mealItems {
+                guard let meal = item.meal,
+                      meal.state == .logged,
+                      let loggedAt = meal.loggedAt
+                else {
+                    continue
+                }
+                let candidate = (
+                    loggedAt: loggedAt,
+                    mealID: meal.id.uuidString,
+                    order: item.order,
+                    itemID: item.id.uuidString,
+                    grams: item.quantityGrams
+                )
+                guard let current = latest else {
+                    latest = candidate
+                    continue
+                }
+                if candidate.loggedAt > current.loggedAt
+                    || (candidate.loggedAt == current.loggedAt
+                        && (candidate.mealID > current.mealID
+                            || (candidate.mealID == current.mealID
+                                && (candidate.order > current.order
+                                    || (candidate.order == current.order
+                                        && candidate.itemID > current.itemID))))) {
+                    latest = candidate
+                }
+            }
+            food.lastUsedAt = latest?.loggedAt
+            food.lastPortionGrams = latest?.grams
         }
     }
 
