@@ -43,15 +43,25 @@ struct CalculatedTargetRateTests {
         )
         let estimate = try #require(evaluation.estimate)
         #expect(estimate.kcalPerDay == 2_481.25)
-        let target = CalculatedTarget(estimate: estimate, rateGoal: F.rate(-0.5))
+        let target = try #require(CalculatedTarget(estimate: estimate, rateGoal: F.rate(-0.5)))
         #expect(target.kcalPerDay == 1_931.25)
 
         let v2Estimate = try #require(F.v2.evaluate(
             on: F.noon(30), intake: F.intake(), weights: F.weights, calendar: F.utc
         ).estimate)
         #expect(v2Estimate.kcalPerDay == 2_437.5)
-        let v2Target = CalculatedTarget(estimate: v2Estimate, rateGoal: F.rate(-0.5))
+        let v2Target = try #require(CalculatedTarget(estimate: v2Estimate, rateGoal: F.rate(-0.5)))
         #expect(v2Target.kcalPerDay == 1_937.5)
+    }
+
+    @Test("an estimate with an invalid ρ yields no target instead of a default ρ", arguments: [0, -7_700, Double.nan])
+    func invalidEstimateDensity(rho: Double) {
+        let estimate = ExpenditureEstimate(
+            kcalPerDay: 2_481.25, asOf: F.day(30), windowFirstDay: F.day(9), windowLastDay: F.day(29),
+            completeIntakeDays: 21, meanIntakeKcal: 2_000, trendDeltaKg: -1.3125,
+            energyDensityKcalPerKg: rho, formula: "FL-EB v1"
+        )
+        #expect(CalculatedTarget(estimate: estimate, rateGoal: F.rate(-0.5)) == nil)
     }
 
     @Test("a non-finite rate goal is rejected", arguments: [Double.nan, .infinity, -.infinity])
@@ -120,6 +130,20 @@ struct SafetyRailTests {
         #expect(outcome.warnings == [.targetBelowFloor])
         #expect(outcome.period.adoptedTargetKcal == 1_100)
         #expect(outcome.period.calculatedTargetKcal == 1_300)
+    }
+
+    @Test("adoption keeps the calculated target's warning: adjusting 1100 up to 1300 still warns")
+    func calculatedBelowFloorAdjustedUp() throws {
+        let calculated = CalculatedTarget(expenditureKcal: 1_650, rateGoal: F.rate(-0.5))
+        #expect(calculated.kcalPerDay == 1_100)
+        #expect(calculated.warnings == [.targetBelowFloor])
+        let adoption = TargetAdoption(
+            calculated: calculated, adoptedTargetKcal: 1_300, macros: F.macros(), formula: .builtinV1
+        )
+        let outcome = try TargetLedger().adopting(adoption, on: F.noon(30), calendar: F.utc, id: F.uuid(1))
+        #expect(outcome.warnings == [.targetBelowFloor])
+        #expect(outcome.period.adoptedTargetKcal == 1_300)
+        #expect(outcome.period.calculatedTargetKcal == 1_100)
     }
 }
 

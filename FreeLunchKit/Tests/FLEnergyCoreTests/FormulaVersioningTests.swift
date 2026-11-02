@@ -22,7 +22,7 @@ private func adopt(
     let estimate = try #require(formula.evaluate(
         on: F.noon(offset), intake: F.intake(), weights: F.weights, calendar: F.utc
     ).estimate)
-    let calculated = CalculatedTarget(estimate: estimate, rateGoal: F.rate(-0.5))
+    let calculated = try #require(CalculatedTarget(estimate: estimate, rateGoal: F.rate(-0.5)))
     return try ledger.adopting(
         TargetAdoption(calculated: calculated, macros: F.macros(), formula: formula),
         on: F.noon(offset), calendar: F.utc, id: F.uuid(id)
@@ -65,6 +65,26 @@ struct FormulaVersionTests {
         let back = try schedule.activating(.builtinV1, from: F.morning(28), calendar: F.utc)
         #expect(back.formula(on: F.noon(28), calendar: F.utc) == .builtinV1)
     }
+
+    @Test("a schedule round-trips through Codable and rebuilds from stored activations")
+    func scheduleRestore() throws {
+        let schedule = try FormulaActivationSchedule().activating(F.v2, from: F.noon(28), calendar: F.utc)
+        let decoded = try JSONDecoder().decode(FormulaActivationSchedule.self, from: F.bytes(schedule))
+        #expect(decoded == schedule)
+        #expect(decoded.formula(on: F.noon(27), calendar: F.utc) == .builtinV1)
+        #expect(decoded.formula(on: F.day(28), calendar: F.utc) == F.v2)
+
+        let first = FormulaActivationSchedule.Activation(formula: .builtinV1, effectiveFrom: .distantPast)
+        let second = FormulaActivationSchedule.Activation(formula: F.v2, effectiveFrom: F.day(28))
+        #expect(FormulaActivationSchedule(activations: [first, second]) == schedule)
+        #expect(FormulaActivationSchedule(activations: []) == nil)
+        #expect(FormulaActivationSchedule(activations: [second, first]) == nil)
+
+        let backwards = try F.bytes(["activations": [second, first]])
+        #expect(throws: DecodingError.self) {
+            try JSONDecoder().decode(FormulaActivationSchedule.self, from: backwards)
+        }
+    }
 }
 
 @Suite("Version pinning (spec §3 acceptance #5)")
@@ -89,6 +109,15 @@ struct VersionPinningTests {
         #expect(ledger.periods == periodsBefore)
         #expect(try F.bytes(renderedAfter) == bytesBefore)
 
+        // Forward only: on these pre-activation days the live series under
+        // the new schedule (which does consult it) agrees day for day with
+        // the pinned rendering.
+        let liveAfter = EnergyHistory.live(
+            schedule: schedule, from: F.day(21), through: F.day(27),
+            intake: F.intake(), weights: F.weights, calendar: F.utc
+        )
+        #expect(try F.bytes(renderedAfter.flatMap(\.history.days)) == F.bytes(liveAfter.days))
+
         // Spot-check the rendering itself: period 1 covers days 21–24 and
         // period 2 days 25–27, every day v1 at 2481.25.
         #expect(renderedAfter.map { $0.history.days.count } == [4, 3])
@@ -105,14 +134,37 @@ struct VersionPinningTests {
 
     @Test("an open period keeps rendering with the version it pinned after a new activation")
     func openPeriodKeepsPinnedVersion() throws {
-        let ledger = try adopt(TargetLedger(), on: 25, formula: .builtinV1, id: 1)
-        _ = try FormulaActivationSchedule().activating(F.v2, from: F.day(28), calendar: F.utc)
-        let rendered = EnergyHistory.render(
+        // Period opened day 25 under v1; v2 activates on day 28, inside it.
+        var ledger = try adopt(TargetLedger(), on: 25, formula: .builtinV1, id: 1)
+        let schedule = try FormulaActivationSchedule().activating(F.v2, from: F.day(28), calendar: F.utc)
+        #expect(schedule.latest == F.v2)
+
+        let pinned = EnergyHistory.render(
             period: ledger.periods[0], through: F.day(32),
             intake: F.intake(), weights: F.weights, calendar: F.utc
         )
-        #expect(rendered.history.days.count == 8) // days 25–32
-        #expect(rendered.history.days.allSatisfy { $0.formulaName == v1Name && $0.displayedKcalPerDay == 2_481.25 })
+        let live = EnergyHistory.live(
+            schedule: schedule, from: F.day(25), through: F.day(32),
+            intake: F.intake(), weights: F.weights, calendar: F.utc
+        )
+        #expect(pinned.history.days.count == 8) // days 25–32
+        #expect(pinned.history.days.allSatisfy { $0.formulaName == v1Name && $0.displayedKcalPerDay == 2_481.25 })
+
+        // The live series switches to v2 on day 28; the pinned period does not.
+        #expect(live.days.prefix(3).allSatisfy { $0.formulaName == v1Name && $0.displayedKcalPerDay == 2_481.25 })
+        #expect(live.days.dropFirst(3).allSatisfy { $0.formulaName == v2Name && $0.displayedKcalPerDay == 2_437.5 })
+        #expect(Array(pinned.history.days.prefix(3)) == Array(live.days.prefix(3)))
+        #expect(Array(pinned.history.days.dropFirst(3)) != Array(live.days.dropFirst(3)))
+
+        // Adopting on day 30 under the active version closes the v1 period
+        // (days 25–29 stay v1) and the new period renders with v2.
+        ledger = try adopt(ledger, on: 30, formula: schedule.formula(on: F.day(30), calendar: F.utc), id: 2)
+        let periods = EnergyHistory.render(
+            ledger: ledger, through: F.day(32), intake: F.intake(), weights: F.weights, calendar: F.utc
+        )
+        #expect(periods.map { $0.history.days.count } == [5, 3])
+        #expect(periods[0].history.days.allSatisfy { $0.formulaName == v1Name && $0.displayedKcalPerDay == 2_481.25 })
+        #expect(periods[1].history.days.allSatisfy { $0.formulaName == v2Name && $0.displayedKcalPerDay == 2_437.5 })
     }
 
     @Test("forward days use the new math; past days of the live series are unchanged")

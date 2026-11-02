@@ -13,7 +13,7 @@ private func liveTarget(on offset: Int, intake: [DayIntake]) throws -> Calculate
     let estimate = try #require(EnergyFormulaVersion.builtinV1.evaluate(
         on: F.noon(offset), intake: intake, weights: F.weights, calendar: F.utc
     ).estimate)
-    return CalculatedTarget(estimate: estimate, rateGoal: F.rate(-0.5))
+    return try #require(CalculatedTarget(estimate: estimate, rateGoal: F.rate(-0.5)))
 }
 
 @Suite("Adoption: explicit, closes the open period, pins values (spec §3)")
@@ -116,6 +116,16 @@ struct AdoptionTests {
         }
     }
 
+    @Test("a target calculated under one ρ cannot be pinned with a formula of another ρ")
+    func formulaMismatch() throws {
+        // Calculated under v1 (ρ 7700), offered for pinning with v2 (ρ 7000).
+        let calculated = try liveTarget(on: 30, intake: F.intake())
+        let adoption = TargetAdoption(calculated: calculated, macros: F.macros(), formula: F.v2)
+        #expect(throws: TargetLedger.AdoptionError.formulaMismatch(calculatedKcalPerKg: 7_700, formulaKcalPerKg: 7_000)) {
+            try TargetLedger().adopting(adoption, on: F.noon(30), calendar: F.utc, id: F.uuid(1))
+        }
+    }
+
     @Test("suggest-only is the default adoption mode")
     func defaultMode() {
         #expect(AdoptionMode.default == .suggestOnly)
@@ -156,11 +166,15 @@ struct AdoptedTargetImmutabilityTests {
         #expect(suggestion.driftKcal == 101.25)
         #expect(suggestion.adoptedTargetKcal == 1_950)
 
-        // … and re-renders history, which is derived …
+        // … and re-renders history, which is derived: every rendered day now
+        // shows the backfilled expenditure (day 15 is inside the 21-day
+        // window of every day 21–35) …
         let rendered = EnergyHistory.render(
             ledger: ledger, through: F.day(35), intake: edited, weights: F.weights, calendar: F.utc
         )
         #expect(rendered.map(\.period) == periodsBefore)
+        #expect(rendered.map { $0.history.days.count } == [9, 6]) // days 21–29, 30–35
+        #expect(rendered.flatMap(\.history.days).allSatisfy { $0.displayedKcalPerDay == 2_601.25 })
 
         // … but every field of every period is exactly as adopted.
         #expect(ledger.periods == periodsBefore)
@@ -169,6 +183,26 @@ struct AdoptedTargetImmutabilityTests {
         #expect(ledger.periods[1].calculatedTargetKcal == 1_931.25)
         #expect(ledger.periods[1].adoptedTargetKcal == 1_950)
         #expect(ledger.periods[0].endDate == F.day(29))
+
+        // Taking the suggestion is a new adoption: it closes the open period
+        // (end date only) and pins the recalculated values in a new period.
+        let readopted = try ledger.adopting(
+            TargetAdoption(calculated: after, macros: F.macros(), formula: .builtinV1),
+            on: F.noon(31), calendar: F.utc, id: F.uuid(3)
+        ).ledger
+        #expect(readopted.periods[0] == periodsBefore[0])
+        let closed = readopted.periods[1]
+        #expect(closed.endDate == F.day(30))
+        #expect(closed.id == periodsBefore[1].id)
+        #expect(closed.startDate == periodsBefore[1].startDate)
+        #expect(closed.expenditureAtAdoptionKcal == 2_481.25)
+        #expect(closed.calculatedTargetKcal == 1_931.25)
+        #expect(closed.adoptedTargetKcal == 1_950)
+        #expect(closed.proteinTargetG == periodsBefore[1].proteinTargetG)
+        #expect(closed.fatFloorPct == periodsBefore[1].fatFloorPct)
+        #expect(closed.formula == periodsBefore[1].formula)
+        #expect(readopted.periods[2].expenditureAtAdoptionKcal == 2_601.25)
+        #expect(readopted.periods[2].adoptedTargetKcal == 2_051.25)
     }
 }
 
@@ -207,5 +241,63 @@ struct ReadoptionSuggestionTests {
         #expect(small.kcalPerDay == 1_951.25)
         #expect(ledger.readoptionSuggestion(live: small) == nil)
         #expect(TargetLedger().readoptionSuggestion(live: small) == nil)
+    }
+}
+
+@Suite("Calendar days across DST changes (America/Halifax)")
+struct DaylightSavingTests {
+    // Expected instants were computed independently with Python's zoneinfo.
+    // Halifax moves from UTC−4 to UTC−3 at 02:00 on 2026-03-08 and back at
+    // 02:00 on 2026-11-01, so local midnight is 04:00Z or 03:00Z.
+    private static let halifax: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Halifax")!
+        return calendar
+    }()
+
+    private static func utc(_ text: String) -> Date {
+        try! Date(text, strategy: .iso8601)
+    }
+
+    private static let adoption = TargetAdoption(
+        calculated: CalculatedTarget(expenditureKcal: 2_000, rateGoal: .maintenance),
+        macros: F.macros(), formula: .builtinV1
+    )
+
+    @Test("spring forward: endDate is local midnight of the day before, governing ends at the new midnight")
+    func springForward() throws {
+        let cal = Self.halifax
+        let first = try TargetLedger().adopting(Self.adoption, on: Self.utc("2026-03-01T16:00:00Z"), calendar: cal, id: F.uuid(1))
+        #expect(first.period.startDate == Self.utc("2026-03-01T04:00:00Z"))
+
+        // 2026-03-09 09:00 local (ADT).
+        let second = try first.ledger.adopting(Self.adoption, on: Self.utc("2026-03-09T12:00:00Z"), calendar: cal, id: F.uuid(2))
+        #expect(second.ledger.periods[0].endDate == Self.utc("2026-03-08T04:00:00Z"))
+        #expect(second.period.startDate == Self.utc("2026-03-09T03:00:00Z"))
+        // 2026-03-08 23:30 local is still the old period; local midnight is the new one.
+        #expect(second.ledger.period(governing: Self.utc("2026-03-09T02:30:00Z"), calendar: cal)?.id == F.uuid(1))
+        #expect(second.ledger.period(governing: Self.utc("2026-03-09T03:00:00Z"), calendar: cal)?.id == F.uuid(2))
+    }
+
+    @Test("fall back: endDate is local midnight of the day before")
+    func fallBack() throws {
+        let cal = Self.halifax
+        let first = try TargetLedger().adopting(Self.adoption, on: Self.utc("2026-10-25T16:00:00Z"), calendar: cal, id: F.uuid(1))
+        // 2026-11-02 12:00 local (AST).
+        let second = try first.ledger.adopting(Self.adoption, on: Self.utc("2026-11-02T16:00:00Z"), calendar: cal, id: F.uuid(2))
+        #expect(second.ledger.periods[0].endDate == Self.utc("2026-11-01T03:00:00Z"))
+        #expect(second.period.startDate == Self.utc("2026-11-02T04:00:00Z"))
+        // 2026-11-01 23:30 local (03:30Z on the 2nd) is still the old period.
+        #expect(second.ledger.period(governing: Self.utc("2026-11-02T03:30:00Z"), calendar: cal)?.id == F.uuid(1))
+    }
+
+    @Test("activation takes effect at local midnight on the DST day")
+    func activationBoundary() throws {
+        let cal = Self.halifax
+        // 2026-03-08 11:00 local (ADT).
+        let schedule = try FormulaActivationSchedule().activating(F.v2, from: Self.utc("2026-03-08T14:00:00Z"), calendar: cal)
+        #expect(schedule.activations.last?.effectiveFrom == Self.utc("2026-03-08T04:00:00Z"))
+        #expect(schedule.formula(on: Self.utc("2026-03-08T03:59:00Z"), calendar: cal) == .builtinV1)
+        #expect(schedule.formula(on: Self.utc("2026-03-08T04:00:00Z"), calendar: cal) == F.v2)
     }
 }

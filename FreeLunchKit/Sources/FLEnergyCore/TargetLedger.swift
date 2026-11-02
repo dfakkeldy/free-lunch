@@ -73,7 +73,7 @@ public struct AdoptedTargetPeriod: Sendable, Hashable, Codable, Identifiable {
     }
 }
 
-/// How adoption happens. Suggest-only is the default (decision 2026-08-01);
+/// How adoption happens. Suggest-only is the default (spec §3);
 /// weekly auto-adopt is an opt-in setting, and each automatic adoption is
 /// still recorded as its own period through the same
 /// ``TargetLedger/adopting(_:on:calendar:id:)`` path. Scheduling the weekly
@@ -87,7 +87,9 @@ public enum AdoptionMode: String, Sendable, Hashable, Codable, CaseIterable {
 
 /// What the user adopts: the live calculated target, the number they chose
 /// (equal to it unless they adjusted it before adopting), the macro targets
-/// and the formula version the calculation ran under.
+/// and the formula version the calculation ran under. The formula's ρ must
+/// be the ρ the target was calculated with; adoption refuses a mismatch so a
+/// period never pins numbers its pinned version did not produce.
 public struct TargetAdoption: Sendable, Hashable {
     public let calculated: CalculatedTarget
     public let adoptedTargetKcal: Double
@@ -170,6 +172,9 @@ public struct TargetLedger: Sendable, Hashable, Codable {
         case invalidAdoptedTarget
         /// The adoption day is before the open period's first day.
         case precedesOpenPeriod(openPeriodStart: Date)
+        /// The calculated target was not produced under the formula version
+        /// being pinned: their energy densities (ρ, kcal/kg) differ.
+        case formulaMismatch(calculatedKcalPerKg: Double, formulaKcalPerKg: Double)
     }
 
     /// The open period, if any (the last period, when it has no end date).
@@ -193,8 +198,15 @@ public struct TargetLedger: Sendable, Hashable, Codable {
     /// with an end date before its start: it is kept as a record of the
     /// adoption but governs no day, and the new period takes over today.
     ///
-    /// Rail warnings are checked against the adopted number and the rate
-    /// goal; they are returned, never thrown.
+    /// Throws ``AdoptionError/formulaMismatch(calculatedKcalPerKg:formulaKcalPerKg:)``
+    /// when the calculated target's ρ is not the pinned formula's ρ, so the
+    /// pinned version always explains the pinned values.
+    ///
+    /// Rail warnings are the union of the calculated target's own warnings
+    /// (the spec §3 rail is worded on the calculated target) and the rails
+    /// applied to the adopted number, so adjusting a sub-floor target upward
+    /// still shows the floor warning and adjusting below the floor adds it.
+    /// They are returned, never thrown.
     public func adopting(
         _ adoption: TargetAdoption,
         on day: Date,
@@ -203,6 +215,11 @@ public struct TargetLedger: Sendable, Hashable, Codable {
     ) throws(AdoptionError) -> AdoptionOutcome {
         let adopted = adoption.adoptedTargetKcal
         guard adopted.isFinite, adopted > 0 else { throw .invalidAdoptedTarget }
+        let calculatedRho = adoption.calculated.energyDensityKcalPerKg
+        let formulaRho = adoption.formula.parameters.energyDensityKcalPerKg
+        guard calculatedRho == formulaRho else {
+            throw .formulaMismatch(calculatedKcalPerKg: calculatedRho, formulaKcalPerKg: formulaRho)
+        }
 
         let today = calendar.startOfDay(for: day)
         var next = periods
@@ -230,7 +247,9 @@ public struct TargetLedger: Sendable, Hashable, Codable {
         return AdoptionOutcome(
             ledger: TargetLedger(periods: next),
             period: period,
-            warnings: TargetRails.warnings(targetKcal: adopted, rateGoal: adoption.calculated.rateGoal)
+            warnings: adoption.calculated.warnings.union(
+                TargetRails.warnings(targetKcal: adopted, rateGoal: adoption.calculated.rateGoal)
+            )
         )
     }
 

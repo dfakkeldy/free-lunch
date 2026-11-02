@@ -85,11 +85,16 @@ extension ExpenditureParameters: Codable {
 /// and never reaches back. The only retroactive path is
 /// ``EnergyHistory/rerun(with:from:through:intake:weights:calendar:)``,
 /// whose output is labeled reconstructed.
-public struct FormulaActivationSchedule: Sendable, Hashable {
+public struct FormulaActivationSchedule: Sendable, Hashable, Codable {
     public struct Activation: Sendable, Hashable, Codable {
         public let formula: EnergyFormulaVersion
         /// Start of the first calendar day the formula is active.
         public let effectiveFrom: Date
+
+        public init(formula: EnergyFormulaVersion, effectiveFrom: Date) {
+            self.formula = formula
+            self.effectiveFrom = effectiveFrom
+        }
     }
 
     /// Activations in the order they happened; effective days never
@@ -99,6 +104,38 @@ public struct FormulaActivationSchedule: Sendable, Hashable {
     /// A schedule where `initial` has always been active.
     public init(initial: EnergyFormulaVersion = .builtinV1) {
         activations = [Activation(formula: initial, effectiveFrom: .distantPast)]
+    }
+
+    /// Rebuilds a schedule from stored activations, in the order they
+    /// happened. Returns nil for an empty list or one whose effective days
+    /// decrease, since activation is forward-only.
+    public init?(activations: [Activation]) {
+        guard !activations.isEmpty,
+              zip(activations, activations.dropFirst()).allSatisfy({ $0.effectiveFrom <= $1.effectiveFrom })
+        else { return nil }
+        self.activations = activations
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case activations
+    }
+
+    /// Decoding applies the same checks as ``init(activations:)``.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let stored = try container.decode([Activation].self, forKey: .activations)
+        guard let schedule = FormulaActivationSchedule(activations: stored) else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .activations, in: container,
+                debugDescription: "activations must be non-empty with non-decreasing effective days"
+            )
+        }
+        self = schedule
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(activations, forKey: .activations)
     }
 
     public enum ActivationError: Error, Sendable, Hashable {

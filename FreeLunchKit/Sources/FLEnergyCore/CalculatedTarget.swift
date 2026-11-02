@@ -11,7 +11,7 @@ public struct RateGoal: Sendable, Hashable, Codable {
     public static let maintenance = RateGoal(validatedKgPerWeek: 0)
 
     /// Returns nil for a non-finite rate. Any finite rate is accepted: the
-    /// rails warn, they never block (decision 2026-08-01).
+    /// rails warn, they never block (spec §3).
     public init?(kgPerWeek: Double) {
         guard kgPerWeek.isFinite else { return nil }
         self.kgPerWeek = kgPerWeek
@@ -45,7 +45,7 @@ public enum TargetWarning: String, Sendable, Hashable, Codable, CaseIterable {
     case rateAboveLimit
 }
 
-/// The warn-only safety rails (spec §3, decision 2026-08-01). Both bounds
+/// The warn-only safety rails (spec §3). Both bounds
 /// are strict: exactly 1200 kcal and exactly 1.0 kg/week do not warn.
 public enum TargetRails {
     /// Warn when a target is below this, kcal/day.
@@ -102,12 +102,14 @@ public struct CalculatedTarget: Sendable, Hashable {
         warnings = TargetRails.warnings(targetKcal: target, rateGoal: rateGoal)
     }
 
-    /// Builds the target from a valid expenditure estimate, using the ρ that
-    /// produced the estimate.
-    public init(estimate: ExpenditureEstimate, rateGoal: RateGoal) {
-        // The estimate's ρ was validated when its parameters were built.
-        let parameters = ExpenditureParameters(energyDensityKcalPerKg: estimate.energyDensityKcalPerKg)
-            ?? .standard
+    /// Builds the target from an expenditure estimate, using the ρ that
+    /// produced the estimate. Returns nil when the estimate carries an
+    /// invalid ρ (not finite and positive) rather than substituting a
+    /// default that would silently change the rate term.
+    public init?(estimate: ExpenditureEstimate, rateGoal: RateGoal) {
+        guard let parameters = ExpenditureParameters(energyDensityKcalPerKg: estimate.energyDensityKcalPerKg) else {
+            return nil
+        }
         self.init(expenditureKcal: estimate.kcalPerDay, rateGoal: rateGoal, parameters: parameters)
     }
 }
