@@ -301,4 +301,23 @@ struct TargetPeriodLoadValidationTests {
         try store.context.save()
         #expect(throws: TargetStoreError.invalidTargetPeriod(uid(1))) { try store.targetLedger() }
     }
+
+    @Test("a period ending one day before it starts loads; two or more days before is refused")
+    func endBeforeStart() throws {
+        // One day before its start is the shape a same-day re-adoption writes.
+        let valid = try makeInMemoryStore()
+        let v1 = try v1Row(valid)
+        insertPeriod(valid, id: uid(1), start: 25, end: 24, formula: v1)
+        insertPeriod(valid, id: uid(2), start: 25, end: nil, formula: v1)
+        try valid.context.save()
+        #expect(try valid.targetLedger().periods.map(\.id) == [uid(1), uid(2)])
+
+        for end in [23, 10] {
+            let store = try makeInMemoryStore()
+            let v1 = try v1Row(store)
+            insertPeriod(store, id: uid(1), start: 25, end: end, formula: v1)
+            try store.context.save()
+            #expect(throws: TargetStoreError.invalidTargetPeriod(uid(1))) { try store.targetLedger() }
+        }
+    }
 }

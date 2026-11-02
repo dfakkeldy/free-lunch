@@ -56,6 +56,36 @@ struct StoredDayIntakeTests {
         ])
         #expect(try store.dayIntakes(from: E.day(5), through: E.day(1), calendar: E.calendar).isEmpty)
     }
+
+    @Test("a day with a native meal and an import uses native intake only; removing the native meal flips it to the reconstruction")
+    func doubleCountBoundary() throws {
+        let store = try makeInMemoryStore()
+        func plate(_ id: Int, hour: Double, kcal: Double, source: MealSource) throws {
+            let at = E.day(6).addingTimeInterval(hour * 3_600)
+            try store.createMeal(MealEntryData(
+                id: uid(id), state: .logged, createdAt: at, loggedAt: at,
+                items: [MealItemData(
+                    id: uid(id * 10), order: 0, foodID: nil, adHocName: "Part",
+                    quantity: Grams(100), nutrition: E.kcal(kcal), provenance: .typed
+                )],
+                source: source
+            ))
+        }
+        try plate(1, hour: 8, kcal: 2_200, source: .healthKitImport)
+        try plate(2, hour: 9, kcal: 600, source: .phone)
+        try plate(3, hour: 19, kcal: 900, source: .watchQuickLog)
+
+        // Native 600 + 900 = 1500; the imported 2200 is ignored, never added.
+        #expect(try store.dayIntakes(from: E.day(6), through: E.day(6), calendar: E.calendar) == [
+            DayIntake(day: E.day(6), intakeKcal: 1_500, evidence: DayIntakeEvidence(loggedMealCount: 2))
+        ])
+
+        try store.deleteMeal(id: uid(2))
+        try store.deleteMeal(id: uid(3))
+        #expect(try store.dayIntakes(from: E.day(6), through: E.day(6), calendar: E.calendar) == [
+            DayIntake(day: E.day(6), intakeKcal: 2_200, evidence: DayIntakeEvidence(hasReconstructedDietaryEnergy: true))
+        ])
+    }
 }
 
 @MainActor

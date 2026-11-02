@@ -297,12 +297,20 @@ extension FormulaVersion {
 }
 
 extension TargetPeriod {
+    /// How far before its start a closed period's end date may fall. Only a
+    /// same-day re-adoption ends a period before its start, and then by
+    /// exactly one calendar day (endDate = yesterday): 23 to 25 hours across
+    /// a DST change. 36 hours admits that day in any time zone and rejects a
+    /// row that ends two or more days before it starts.
+    static let maxEndBeforeStart: TimeInterval = 36 * 3_600
+
     func asAdoptedTargetPeriod() throws -> AdoptedTargetPeriod {
         guard let formulaVersion,
               expenditureAtAdoptionKcal.isFinite,
               calculatedTargetKcal.isFinite,
               adoptedTargetKcal.isFinite, adoptedTargetKcal > 0,
-              MacroTargets(proteinTargetG: proteinTargetG, fatFloorPct: fatFloorPct) != nil
+              MacroTargets(proteinTargetG: proteinTargetG, fatFloorPct: fatFloorPct) != nil,
+              endDate.map({ $0 >= startDate.addingTimeInterval(-Self.maxEndBeforeStart) }) ?? true
         else {
             throw TargetStoreError.invalidTargetPeriod(id)
         }

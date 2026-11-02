@@ -25,7 +25,12 @@ extension MealStore {
     /// A day's kcal is the sum of its logged meals' item snapshots, by the
     /// calendar day of `loggedAt`. Native meals count as logged MealEntries;
     /// HealthKit-imported meals are the reconstructed dietary-energy days of
-    /// spec §10. The engine treats both alike. Drafts never count.
+    /// spec §10. Drafts never count.
+    ///
+    /// Double-count boundary (spec §10): a day with at least one native
+    /// logged meal uses native intake only and its imported kcal are
+    /// ignored; a day with no native meal uses the reconstruction. A day is
+    /// never both.
     public func dayIntakes(
         from first: Date,
         through last: Date,
@@ -44,10 +49,12 @@ extension MealStore {
             guard let loggedAt = meal.loggedAt else { continue }
             let key = calendar.startOfDay(for: loggedAt)
             var day = days[key] ?? IntakeDayTally()
-            day.kcal += meal.items.reduce(0) { $0 + $1.nutrition.kcal }
+            let kcal = meal.items.reduce(0) { $0 + $1.nutrition.kcal }
             if meal.source == .healthKitImport {
-                day.reconstructed = true
+                day.importedKcal += kcal
+                day.hasImport = true
             } else {
+                day.nativeKcal += kcal
                 day.nativeMeals += 1
             }
             days[key] = day
@@ -59,12 +66,13 @@ extension MealStore {
         }
         return days.keys.sorted().map { key in
             let day = days[key]!
+            let native = day.nativeMeals > 0
             return DayIntake(
                 day: key,
-                intakeKcal: day.kcal,
+                intakeKcal: native ? day.nativeKcal : day.importedKcal,
                 evidence: DayIntakeEvidence(
                     loggedMealCount: day.nativeMeals,
-                    hasReconstructedDietaryEnergy: day.reconstructed,
+                    hasReconstructedDietaryEnergy: !native && day.hasImport,
                     markedDidNotTrack: day.marked
                 )
             )
@@ -74,9 +82,10 @@ extension MealStore {
 
 /// One calendar day's running totals while reading meals.
 private struct IntakeDayTally {
-    var kcal = 0.0
+    var nativeKcal = 0.0
+    var importedKcal = 0.0
     var nativeMeals = 0
-    var reconstructed = false
+    var hasImport = false
     var marked = false
 }
 
