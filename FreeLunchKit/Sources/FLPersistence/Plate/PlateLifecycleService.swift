@@ -37,6 +37,9 @@ public final class PlateLifecycleService {
         return meal
     }
 
+    /// Adds a catalog item. `provenance` says how the grams were obtained
+    /// (spec §2 "Weighing flows": a scale reading is `.scaleWeighed`); the
+    /// default keeps plain typed entry `.typed`.
     @discardableResult
     public func addCatalogItem(
         foodID: UUID,
@@ -48,11 +51,14 @@ public final class PlateLifecycleService {
         return try store.addItem(.catalog(foodID: foodID, quantity: quantity, provenance: provenance), toMeal: mealID)
     }
 
+    /// Adds an ad-hoc item, optionally saving it as a custom food. As with
+    /// catalog items, `provenance` defaults to `.typed`.
     @discardableResult
     public func addAdHocItem(
         name: String,
         quantity: Grams,
         nutrition: NutritionValues,
+        provenance: ItemProvenance = .typed,
         toMeal mealID: UUID,
         saveAsFoodID: UUID? = nil
     ) throws -> (item: MealItemData, food: FoodItemData?) {
@@ -71,14 +77,14 @@ public final class PlateLifecycleService {
             )
             let item = try store.addAdHocItemSavingFood(
                 food,
-                item: .adHoc(name: name, quantity: quantity, nutrition: nutrition, provenance: .typed),
+                item: .adHoc(name: name, quantity: quantity, nutrition: nutrition, provenance: provenance),
                 toMeal: mealID
             )
             return (item, food)
         }
 
         let item = try store.addItem(
-            .adHoc(name: name, quantity: quantity, nutrition: nutrition, provenance: .typed),
+            .adHoc(name: name, quantity: quantity, nutrition: nutrition, provenance: provenance),
             toMeal: mealID
         )
         return (item, nil)
