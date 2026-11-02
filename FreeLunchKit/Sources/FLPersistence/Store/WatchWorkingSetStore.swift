@@ -157,10 +157,11 @@ extension SwiftDataStore: WatchWorkingSetStore {
                 if lhs.queuedAt != rhs.queuedAt { return lhs.queuedAt < rhs.queuedAt }
                 return lhs.id.uuidString < rhs.id.uuidString
             }
-            .map {
-                WatchOutboxItem(
+            .compactMap {
+                guard let kind = $0.kind else { return nil }
+                return WatchOutboxItem(
                     id: $0.id,
-                    kind: $0.kind,
+                    kind: kind,
                     subjectID: $0.subjectID,
                     queuedAt: $0.queuedAt,
                     payload: $0.payload

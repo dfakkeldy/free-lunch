@@ -53,6 +53,40 @@ struct WatchPruningTests {
         #expect(try store.recentFoods() == replacement)
     }
 
+    @Test("a newer digest refreshes existing food snapshots and preserves its order after reload")
+    func digestReplacementRefreshesExistingFoods() throws {
+        let oldDigest = (1...3).map { number in
+            RecentFoodSnapshotData(
+                foodID: uid(number),
+                name: "Old \(number)",
+                lastPortionGrams: Double(number)
+            )
+        }
+        let newDigest = [
+            RecentFoodSnapshotData(foodID: uid(3), name: "New 3", lastPortionGrams: 30),
+            RecentFoodSnapshotData(foodID: uid(1), name: "New 1", lastPortionGrams: 10),
+            RecentFoodSnapshotData(foodID: uid(2), name: "New 2", lastPortionGrams: 20)
+        ]
+
+        let inMemory = try SwiftDataStore.watch(at: .inMemory)
+        try inMemory.replaceRecentFoods(oldDigest)
+        try inMemory.replaceRecentFoods(newDigest)
+        #expect(try inMemory.rowCount(RecentFoodSnapshot.self) == 3)
+        #expect(try inMemory.recentFoods() == newDigest)
+
+        let url = try temporaryStoreURL()
+        defer { removeStore(at: url) }
+        do {
+            let store = try SwiftDataStore.watch(at: .file(url))
+            try store.replaceRecentFoods(oldDigest)
+            try store.replaceRecentFoods(newDigest)
+        }
+
+        let reopened = try SwiftDataStore.watch(at: .file(url))
+        #expect(try reopened.rowCount(RecentFoodSnapshot.self) == 3)
+        #expect(try reopened.recentFoods() == newDigest)
+    }
+
     @Test("duplicate digest ids keep their first record and do not use a cap slot")
     func digestDeduplicatesBeforeCapping() throws {
         let store = try SwiftDataStore.watch(at: .inMemory)
