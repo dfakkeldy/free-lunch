@@ -162,7 +162,7 @@ public struct CapturePlate: Sendable, Hashable {
             protein: Grams(protein),
             carbs: Grams(carbs),
             fat: Grams(fat),
-            fiber: fiber.map(Grams.init)
+            fiber: fiber.map { Grams($0) }
         )
         items[index].userEdited = true
     }

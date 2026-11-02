@@ -105,7 +105,7 @@ public enum LabelOCRParser {
                 protein: Grams(per100Protein),
                 carbs: Grams(per100Carbs),
                 fat: Grams(per100Fat),
-                fiber: per100Fiber.map(Grams.init)
+                fiber: per100Fiber.map { Grams($0) }
             ),
             isLiquid: false,
             servings: [ServingDef(name: (dictionary["servingName"] as? String) ?? "1 serving", grams: Grams(servingSize))],
@@ -135,7 +135,7 @@ extension FoodItemDraft {
                 protein: Grams(protein),
                 carbs: Grams(carbs),
                 fat: Grams(fat),
-                fiber: fiber.map(Grams.init)
+                fiber: fiber.map { Grams($0) }
             ),
             provenance: .labelOCR,
             aiRecordID: nil,

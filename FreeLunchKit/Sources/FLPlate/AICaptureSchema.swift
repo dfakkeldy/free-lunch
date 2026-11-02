@@ -41,7 +41,7 @@ public struct AICaptureResponse: Sendable, Hashable, Codable {
     }
 }
 
-public enum AICaptureFailure: Error, Equatable, Sendable, Codable {
+public enum AICaptureFailure: Error, Hashable, Sendable, Codable {
     case notJSON
     case schemaMismatch
     case emptyItems
