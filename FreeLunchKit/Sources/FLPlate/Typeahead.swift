@@ -58,6 +58,7 @@ public enum Typeahead: Sendable {
         return Double(useCount) * pow(0.5, daysSince / halfLifeDays)
     }
 
+    /// Returns typeahead rows; a brand-only match is always in the substring tier, even when the brand starts with the query.
     public static func rows(
         query: String,
         foods: [TypeaheadFood],
@@ -79,19 +80,19 @@ public enum Typeahead: Sendable {
         } else {
             let foldedQuery = fold(trimmedQuery)
             let candidates = availableFoods.compactMap { food -> Match? in
-                let foldedName = fold(food.name)
-                let isPrefix = foldedName.hasPrefix(foldedQuery)
+                let rankedFood = RankedFood(
+                    food: food,
+                    score: score(useCount: food.useCount, lastUsedAt: food.lastUsedAt, now: now)
+                )
+                let isPrefix = rankedFood.foldedName.hasPrefix(foldedQuery)
                 let isSubstring = !isPrefix && (
-                    foldedName.contains(foldedQuery) ||
+                    rankedFood.foldedName.contains(foldedQuery) ||
                     food.brand.map { fold($0).contains(foldedQuery) } == true
                 )
 
                 guard isPrefix || isSubstring else { return nil }
                 return Match(
-                    rankedFood: RankedFood(
-                        food: food,
-                        score: score(useCount: food.useCount, lastUsedAt: food.lastUsedAt, now: now)
-                    ),
+                    rankedFood: rankedFood,
                     isPrefix: isPrefix
                 )
             }
@@ -126,8 +127,13 @@ public enum Typeahead: Sendable {
     private struct RankedFood {
         let food: TypeaheadFood
         let score: Double
+        let foldedName: String
 
-        var foldedName: String { Typeahead.fold(food.name) }
+        init(food: TypeaheadFood, score: Double) {
+            self.food = food
+            self.score = score
+            foldedName = Typeahead.fold(food.name)
+        }
     }
 
     private struct Match {

@@ -70,6 +70,19 @@ struct TypeaheadTests {
         ])
     }
 
+    @Test("never-used prefix matches precede substring matches")
+    func zeroScoreTierOrder() {
+        let chickpeas = food(22, "Chickpeas")
+        let peanutButter = food(23, "Peanut butter")
+
+        #expect(rowLabels(Typeahead.rows(query: "pea", foods: [chickpeas, peanutButter], now: now)) == [
+            "Peanut butter|prefix",
+            "Chickpeas|substring",
+            "tail:newFood",
+            "tail:adHocEntry"
+        ])
+    }
+
     @Test("matching is case and diacritic insensitive, and tails are unconditional")
     func normalizedMatchingAndTails() {
         let appExpected = [
