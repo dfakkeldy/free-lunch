@@ -25,8 +25,7 @@ enum FreeLunchSchemaV1: VersionedSchema {
     static var versionIdentifier: Schema.Version { Schema.Version(1, 0, 0) }
 
     /// Every spec §1 entity, in spec order, then the watch working-set
-    /// digest. The watch outbox is not modelled yet; it lands with the
-    /// watch pruning work.
+    /// digest and outbox.
     static var models: [any PersistentModel.Type] {
         [
             FoodItem.self,
@@ -46,7 +45,8 @@ enum FreeLunchSchemaV1: VersionedSchema {
             JournalEntry.self,
             FormulaVersion.self,
             TargetPeriod.self,
-            RecentFoodSnapshot.self
+            RecentFoodSnapshot.self,
+            WatchOutboxRecord.self
         ]
     }
 }
