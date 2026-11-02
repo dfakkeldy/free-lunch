@@ -109,7 +109,12 @@ struct PlateScreen: View {
                     Button {
                         model.log(mealID: meal.id)
                     } label: {
+                        // One line at every text size, so sharing the row
+                        // with the clock button never makes the bar taller
+                        // and hides more of the plate.
                         Text("Log plate")
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
