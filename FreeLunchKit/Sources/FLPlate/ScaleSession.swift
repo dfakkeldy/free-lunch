@@ -16,6 +16,11 @@ public enum ScaleSessionError: Error, Equatable, Sendable {
 
 /// Pure value logic for recording ingredients from a kitchen scale. (spec §2)
 public struct ScaleSession: Sendable, Equatable {
+    /// Scale steps per gram: cumulative deltas are quantized to 0.01 g. Scaling
+    /// by an integer and dividing keeps the result the nearest Double to the
+    /// decimal value (multiplying by 0.01 does not).
+    private static let scaleStepsPerGram = 100.0
+
     public let mode: ScaleSessionMode
     public private(set) var items: [Grams]
     public private(set) var lastCumulativeReading: Double
@@ -42,7 +47,9 @@ public struct ScaleSession: Sendable, Equatable {
             guard reading >= lastCumulativeReading else {
                 throw .negativeDelta(reading: reading, previous: lastCumulativeReading)
             }
-            return Grams(reading - lastCumulativeReading)
+            let delta = reading - lastCumulativeReading
+            let quantizedDelta = (delta * Self.scaleStepsPerGram).rounded() / Self.scaleStepsPerGram
+            return Grams(quantizedDelta)
         }
     }
 

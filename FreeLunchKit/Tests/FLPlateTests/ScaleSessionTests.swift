@@ -17,6 +17,17 @@ struct ScaleSessionTests {
         #expect(session.items.count == 5)
     }
 
+    @Test("Cumulative fractional readings are quantized to the scale resolution")
+    func cumulativeFractionalReadings() throws {
+        var session = ScaleSession(mode: .cumulative)
+
+        for reading in [100.1, 200.3, 412.7] {
+            try session.record(reading: reading)
+        }
+
+        #expect(session.items == [.init(100.1), .init(100.2), .init(212.4)])
+    }
+
     @Test("Cumulative negative deltas do not persist")
     func cumulativeNegativeDelta() throws {
         var session = ScaleSession(mode: .cumulative)
@@ -95,6 +106,21 @@ struct ScaleSessionTests {
 
         var cumulative = ScaleSession(mode: .cumulative)
         for reading in [120, 275.5, 410] {
+            try cumulative.record(reading: reading)
+        }
+
+        #expect(tared.items == cumulative.items)
+    }
+
+    @Test("Tared and cumulative fractional weighings produce identical items")
+    func equivalentFractionalWeighings() throws {
+        var tared = ScaleSession(mode: .tared)
+        for reading in [100.1, 100.2, 212.4] {
+            try tared.record(reading: reading)
+        }
+
+        var cumulative = ScaleSession(mode: .cumulative)
+        for reading in [100.1, 200.3, 412.7] {
             try cumulative.record(reading: reading)
         }
 
