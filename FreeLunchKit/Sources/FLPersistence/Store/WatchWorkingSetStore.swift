@@ -67,6 +67,7 @@ public protocol WatchWorkingSetStore: AnyObject {
 
 extension SwiftDataStore: WatchWorkingSetStore {
     public func replaceRecentFoods(_ digest: [RecentFoodSnapshotData]) throws {
+        try requireStoreKind(.watch, operation: "replaceRecentFoods")
         var foodIDs = Set<UUID>()
         var retained: [RecentFoodSnapshotData] = []
         for snapshot in digest where foodIDs.insert(snapshot.foodID).inserted {
@@ -90,7 +91,8 @@ extension SwiftDataStore: WatchWorkingSetStore {
     }
 
     public func recentFoods() throws -> [RecentFoodSnapshotData] {
-        try context.fetch(FetchDescriptor<RecentFoodSnapshot>())
+        try requireStoreKind(.watch, operation: "recentFoods")
+        return try context.fetch(FetchDescriptor<RecentFoodSnapshot>())
             .sorted { lhs, rhs in
                 if lhs.rank != rhs.rank { return lhs.rank < rhs.rank }
                 return lhs.foodID.uuidString < rhs.foodID.uuidString
@@ -105,6 +107,7 @@ extension SwiftDataStore: WatchWorkingSetStore {
     }
 
     public func enqueueShot(_ shot: ShotEventData, queuedAt: Date) throws {
+        try requireStoreKind(.watch, operation: "enqueueShot")
         guard try watchOutboxRecord(id: shot.id) == nil else {
             throw FreeLunchStoreError.duplicateID(shot.id)
         }
@@ -120,6 +123,7 @@ extension SwiftDataStore: WatchWorkingSetStore {
     }
 
     public func enqueueMeal(id: UUID, payload: Data, queuedAt: Date) throws {
+        try requireStoreKind(.watch, operation: "enqueueMeal")
         guard try watchOutboxRecord(id: id) == nil else {
             throw FreeLunchStoreError.duplicateID(id)
         }
@@ -135,6 +139,7 @@ extension SwiftDataStore: WatchWorkingSetStore {
 
     @discardableResult
     public func enqueueHungerEdit(_ edit: WatchHungerEdit) throws -> UUID {
+        try requireStoreKind(.watch, operation: "enqueueHungerEdit")
         if let hunger = edit.hunger, !DomainScale.hunger.contains(hunger) {
             throw FreeLunchStoreError.invalidHunger(hunger)
         }
@@ -152,7 +157,8 @@ extension SwiftDataStore: WatchWorkingSetStore {
     }
 
     public func outbox() throws -> [WatchOutboxItem] {
-        try context.fetch(FetchDescriptor<WatchOutboxRecord>())
+        try requireStoreKind(.watch, operation: "outbox")
+        return try context.fetch(FetchDescriptor<WatchOutboxRecord>())
             .sorted { lhs, rhs in
                 if lhs.queuedAt != rhs.queuedAt { return lhs.queuedAt < rhs.queuedAt }
                 return lhs.id.uuidString < rhs.id.uuidString
@@ -170,10 +176,12 @@ extension SwiftDataStore: WatchWorkingSetStore {
     }
 
     public func acknowledge(_ outboxIDs: [UUID]) throws {
+        try requireStoreKind(.watch, operation: "acknowledge")
         let acknowledged = Set(outboxIDs)
         guard !acknowledged.isEmpty else { return }
-        let records = try context.fetch(FetchDescriptor<WatchOutboxRecord>())
-        let matched = records.filter { acknowledged.contains($0.id) }
+        let matched = try context.fetch(FetchDescriptor<WatchOutboxRecord>(predicate: #Predicate {
+            acknowledged.contains($0.id)
+        }))
         guard !matched.isEmpty else { return }
         for record in matched {
             context.delete(record)

@@ -15,17 +15,26 @@ import SwiftData
 @MainActor
 public final class SwiftDataStore: FreeLunchStore {
     let context: ModelContext
+    private let kind: FreeLunchStoreKind?
 
     /// Internal: `ModelContainer` never appears in a public signature (see
     /// Schema/FreeLunchContainer.swift). Tests reach it through
     /// `@testable import` to open a second store on the same container.
-    init(container: ModelContainer) {
-        context = ModelContext(container)
-        context.autosaveEnabled = false
+    convenience init(container: ModelContainer) {
+        // Test-built stores are deliberately unrestricted, so one fixture can
+        // exercise both the phone history and the watch working set.
+        self.init(container: container, kind: nil)
     }
 
     public convenience init(kind: FreeLunchStoreKind, at location: FreeLunchStoreLocation = .applicationDefault) throws {
-        self.init(container: try FreeLunchContainer.make(kind, at: location))
+        let container = try FreeLunchContainer.make(kind, at: location)
+        self.init(container: container, kind: kind)
+    }
+
+    private init(container: ModelContainer, kind: FreeLunchStoreKind?) {
+        self.kind = kind
+        context = ModelContext(container)
+        context.autosaveEnabled = false
     }
 
     /// Phone store: full history (spec §1 store shape).
@@ -676,6 +685,21 @@ public final class SwiftDataStore: FreeLunchStore {
         } catch {
             context.rollback()
             throw error
+        }
+    }
+
+    /// Store-kind guard (spec §1 store shape). Watch-only operations (outbox,
+    /// recent foods) refuse a phone store. Phone-only operations (weights,
+    /// corrections, targets, AI capture, plate lifecycle edits) refuse a watch
+    /// store. The base record CRUD (foods, meals, shots, planner, journal) stays
+    /// open on both kinds: the watch creates those rows too and the scenario
+    /// tests drive them through a watch store. A store built from a raw
+    /// container (tests) has no kind and allows everything.
+    func requireStoreKind(_ expected: FreeLunchStoreKind, operation: String) throws {
+        guard let kind, kind != expected else { return }
+        switch expected {
+        case .phone: throw FreeLunchStoreError.phoneOnlyOperation(operation)
+        case .watch: throw FreeLunchStoreError.watchOnlyOperation(operation)
         }
     }
 

@@ -23,9 +23,9 @@ public protocol WeightStore: AnyObject {
 
 extension SwiftDataStore: WeightStore {
     public func upsertWeightSample(_ sample: WeightSampleData) throws {
+        try requireStoreKind(.phone, operation: "upsertWeightSample")
         try validate(sample.weightKg)
-        let mirrors = try context.fetch(FetchDescriptor<WeightSampleMirror>())
-        if let stored = mirrors.first(where: { $0.hkUUID == sample.hkUUID }) {
+        if let stored = try weightMirror(hkUUID: sample.hkUUID) {
             stored.measuredAt = sample.measuredAt
             stored.weightKg = sample.weightKg
             stored.sourceBundleID = sample.sourceBundleID
@@ -45,8 +45,8 @@ extension SwiftDataStore: WeightStore {
     }
 
     public func markWeightSampleDeletedInHK(hkUUID: UUID) throws {
-        let mirrors = try context.fetch(FetchDescriptor<WeightSampleMirror>())
-        guard let stored = mirrors.first(where: { $0.hkUUID == hkUUID }) else {
+        try requireStoreKind(.phone, operation: "markWeightSampleDeletedInHK")
+        guard let stored = try weightMirror(hkUUID: hkUUID) else {
             throw FreeLunchStoreError.notFound(hkUUID)
         }
         stored.deletedInHK = true
@@ -54,14 +54,16 @@ extension SwiftDataStore: WeightStore {
     }
 
     public func weightSamples(includingDeletedInHK: Bool) throws -> [WeightSampleData] {
-        try context.fetch(FetchDescriptor<WeightSampleMirror>())
+        try requireStoreKind(.phone, operation: "weightSamples")
+        return try context.fetch(FetchDescriptor<WeightSampleMirror>())
             .filter { includingDeletedInHK || !$0.deletedInHK }
             .map { try $0.asWeightSampleData() }
             .sorted(by: WeightSampleData.displayOrder)
     }
 
     public func addCorrection(_ correction: CorrectionData) throws {
-        guard try !context.fetch(FetchDescriptor<Correction>()).contains(where: { $0.id == correction.id }) else {
+        try requireStoreKind(.phone, operation: "addCorrection")
+        guard try model(Correction.self, id: correction.id) == nil else {
             throw FreeLunchStoreError.duplicateID(correction.id)
         }
         try validate(correction)
@@ -80,15 +82,16 @@ extension SwiftDataStore: WeightStore {
     }
 
     public func corrections(targetKind: CorrectionTargetKind?) throws -> [CorrectionData] {
-        try context.fetch(FetchDescriptor<Correction>())
+        try requireStoreKind(.phone, operation: "corrections")
+        return try context.fetch(FetchDescriptor<Correction>())
             .filter { targetKind == nil || $0.targetKind == targetKind }
             .map { $0.asCorrectionData() }
             .sorted(by: CorrectionData.creationOrder)
     }
 
     public func deleteCorrection(id: UUID) throws {
-        let rows = try context.fetch(FetchDescriptor<Correction>())
-        guard let stored = rows.first(where: { $0.id == id }) else {
+        try requireStoreKind(.phone, operation: "deleteCorrection")
+        guard let stored = try model(Correction.self, id: id) else {
             throw FreeLunchStoreError.notFound(id)
         }
         context.delete(stored)
@@ -96,7 +99,8 @@ extension SwiftDataStore: WeightStore {
     }
 
     public func correctedWeightView() throws -> [CorrectedWeightSample] {
-        CorrectedWeightView.derive(
+        try requireStoreKind(.phone, operation: "correctedWeightView")
+        return CorrectedWeightView.derive(
             samples: try weightSamples(includingDeletedInHK: true),
             corrections: try corrections(targetKind: .hkWeightSample)
         )
@@ -106,6 +110,12 @@ extension SwiftDataStore: WeightStore {
         guard weightKg.isFinite, weightKg > 0 else {
             throw WeightStoreError.invalidWeight(weightKg)
         }
+    }
+
+    private func weightMirror(hkUUID: UUID) throws -> WeightSampleMirror? {
+        var descriptor = FetchDescriptor<WeightSampleMirror>(predicate: #Predicate { $0.hkUUID == hkUUID })
+        descriptor.fetchLimit = 1
+        return try context.fetch(descriptor).first
     }
 
     private func validate(_ correction: CorrectionData) throws {
@@ -128,6 +138,10 @@ extension SwiftDataStore: WeightStore {
             }
         }
     }
+}
+
+extension Correction: IdentifiedByUUID {
+    static func predicate(id: UUID) -> Predicate<Correction> { #Predicate { $0.id == id } }
 }
 
 fileprivate extension WeightSampleMirror {

@@ -4,6 +4,11 @@ import Foundation
 /// Why a `FreeLunchStore` call was refused. Every refusal is decided before
 /// the first row is touched, so a refused call leaves the store unchanged.
 public enum FreeLunchStoreError: Error, Equatable, Sendable {
+    /// An operation available only on the watch working set was sent to a
+    /// phone-history store.
+    case watchOnlyOperation(String)
+    /// A full-history operation was sent to a watch working-set store.
+    case phoneOnlyOperation(String)
     /// No record with this id.
     case notFound(UUID)
     /// A record (or a nested item, component or photo) with this id exists.

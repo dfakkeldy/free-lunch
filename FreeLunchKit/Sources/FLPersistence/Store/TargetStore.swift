@@ -68,9 +68,9 @@ public enum TargetStoreError: Error, Equatable, Sendable {
     /// A stored version has no parameters, or they do not decode to a valid
     /// set (ρ finite and positive).
     case invalidFormulaParameters(UUID)
-    /// A stored period fails validation: a non-finite or non-positive value,
-    /// invalid macros, no pinned version, a second open period, or an
-    /// overlap with the period before it.
+    /// A stored period fails validation: a non-finite value, a non-positive
+    /// adopted target, invalid macros, no pinned version, a second open
+    /// period, or an overlap with the period before it.
     case invalidTargetPeriod(UUID)
     /// The energy core refused the adoption.
     case adoption(TargetLedger.AdoptionError)
@@ -99,6 +99,7 @@ public protocol TargetStore: AnyObject {
 
 extension SwiftDataStore: TargetStore {
     public func registerFormulaVersion(_ version: StoredFormulaVersion) throws {
+        try requireStoreKind(.phone, operation: "registerFormulaVersion")
         guard try targetRow(FormulaVersion.self, id: version.id) == nil else {
             throw FreeLunchStoreError.duplicateID(version.id)
         }
@@ -121,11 +122,13 @@ extension SwiftDataStore: TargetStore {
     }
 
     public func formulaVersion(id: UUID) throws -> StoredFormulaVersion? {
-        try targetRow(FormulaVersion.self, id: id)?.asStoredFormulaVersion()
+        try requireStoreKind(.phone, operation: "formulaVersion")
+        return try targetRow(FormulaVersion.self, id: id)?.asStoredFormulaVersion()
     }
 
     public func formulaVersions() throws -> [StoredFormulaVersion] {
-        try context.fetch(FetchDescriptor<FormulaVersion>())
+        try requireStoreKind(.phone, operation: "formulaVersions")
+        return try context.fetch(FetchDescriptor<FormulaVersion>())
             .map { try $0.asStoredFormulaVersion() }
             .sorted { lhs, rhs in
                 if lhs.createdAt != rhs.createdAt { return lhs.createdAt < rhs.createdAt }
@@ -134,7 +137,8 @@ extension SwiftDataStore: TargetStore {
     }
 
     public func targetLedger() throws -> TargetLedger {
-        TargetLedger(periods: try storedPeriods().map(\.period))
+        try requireStoreKind(.phone, operation: "targetLedger")
+        return TargetLedger(periods: try storedPeriods().map(\.period))
     }
 
     @discardableResult
@@ -144,6 +148,7 @@ extension SwiftDataStore: TargetStore {
         calendar: Calendar,
         id: UUID
     ) throws -> AdoptionOutcome {
+        try requireStoreKind(.phone, operation: "adoptTarget")
         let stored = try storedPeriods()
         guard try targetRow(TargetPeriod.self, id: id) == nil else {
             throw FreeLunchStoreError.duplicateID(id)
@@ -225,6 +230,9 @@ extension SwiftDataStore: TargetStore {
 
     /// The registered version equal to `formula`, if any.
     private func formulaRow(matching formula: EnergyFormulaVersion) throws -> FormulaVersion? {
+        // Formula value equality includes decoded parameters, which SwiftData
+        // cannot predicate directly; the small registered-version list is not
+        // a keyed id lookup.
         try context.fetch(FetchDescriptor<FormulaVersion>())
             .first { try $0.asEnergyFormulaVersion() == formula }
     }
