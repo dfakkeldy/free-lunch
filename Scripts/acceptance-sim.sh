@@ -6,8 +6,8 @@
 # on any failure; changes to Free Lunch simulator acceptance belong here.
 #
 # What this does, in order:
-#   1. Resolves the dedicated iPhone and Apple Watch simulator pair
-#      simulator pair BY NAME via `xcrun simctl list devices --json`,
+#   1. Resolves the dedicated iPhone and Apple Watch simulator pair by name
+#      via `xcrun simctl list devices --json`,
 #      parsed with the macOS-bundled /usr/bin/python3 (a system tool that
 #      ships with every Mac, not a project dependency -- not Homebrew
 #      python, not a pinned interpreter). The match must be exact-name,
@@ -28,7 +28,7 @@
 #      the Scripts/output/latest symlink to point at it, and prunes
 #      run directories beyond the newest 5.
 #
-# RAM guardrails (16 GB build Mac -- non-negotiable):
+# RAM guardrails (memory-constrained build Mac -- non-negotiable):
 #   - A global, mkdir-based lock ($LOCK_DIR) serializes this script
 #     against any other Free Lunch xcodebuild/simctl work on the machine.
 #     The single ownership-flag-aware `cleanup` trap (EXIT/INT/TERM) is
@@ -45,8 +45,8 @@
 #     <unix ts>") so a dead holder's lock can be detected and recovered:
 #     if the owner file is older than 30 minutes AND its pid is no
 #     longer alive, the lock is treated as stale, is recovered (with a
-#     loud log line and `xcrun simctl shutdown all` to clear whatever
-#     the dead owner left booted), and re-acquired. If the owner file is
+#     loud log line; the named pair is reset by the normal boot step after
+#     re-acquisition), and re-acquired. If the owner file is
 #     missing or unreadable/unparseable (e.g. the holder was killed
 #     between `mkdir` succeeding and the owner file being written), the
 #     lock directory's own mtime is used instead: once it is >= 30
@@ -61,12 +61,10 @@
 #     passed via -derivedDataPath) so nothing accumulates multiple copies.
 #   - On every exit path where THIS process holds the lock (pass, fail,
 #     or a cancelled/interrupted run) -- and only then --:
-#     `xcrun simctl shutdown all` runs, any simulator whose name starts
-#     with "Clone of" is deleted, and the lock is released. If shutdown
-#     or clone deletion fails, that is logged loudly AND forces the
-#     script's own exit code non-zero, even if the tests themselves
-#     passed -- leaving shared simulator state dirty counts as a failed
-#     acceptance run.
+#     only the two named simulator UDIDs are shut down, and the lock is
+#     released. A shutdown failure is logged loudly AND forces the script's
+#     own exit code non-zero, even if the tests themselves passed -- leaving
+#     this project's simulator state dirty counts as a failed acceptance run.
 #   - A cancelled run (SIGINT/SIGTERM) always exits 130/143 respectively,
 #     never 0, and never prints PASS -- regardless of what the
 #     in-flight command's exit status happened to be.
@@ -96,6 +94,9 @@ OWNER_FILE="$LOCK_DIR/owner"
 
 IPHONE_NAME="Free Lunch iPhone"
 WATCH_NAME="Free Lunch Watch S11 46mm"
+# Initialized before traps are installed so cleanup remains safe under set -u.
+IPHONE_UDID=""
+WATCH_UDID=""
 
 LOCK_TIMEOUT_SECONDS=$((45 * 60))
 STALE_LOCK_SECONDS=$((30 * 60))
@@ -129,10 +130,10 @@ log() { echo "acceptance-sim: $*" >&2; }
 #     regardless of what $? happened to be from the command in flight.
 #   - Natural EXIT (script ran to completion or `set -e` aborted it) uses
 #     the real $? so normal pass/fail exit codes are preserved.
-#   - `xcrun simctl shutdown all` and stray-clone deletion results are
-#     checked explicitly; either failing is logged loudly and forces the
-#     final exit code non-zero even if the tests passed, because leaving
-#     shared simulator state dirty is itself a failed acceptance run.
+#   - Shutdown results for the named pair are checked explicitly; a real
+#     failure is logged loudly and forces the final exit code non-zero even
+#     if the tests passed, because leaving this project's simulator state
+#     dirty is itself a failed acceptance run.
 #   - The lock (dir + owner file) is only ever removed here if THIS
 #     process is the one that acquired it (LOCK_OWNED=1).
 # ---------------------------------------------------------------------------
@@ -151,55 +152,20 @@ cleanup() {
   if [ "$LOCK_OWNED" -ne 1 ]; then
     log "no build lock owned at exit -- nothing to clean up on the lock/simulator side (exit $exit_code)"
   else
-    if ! xcrun simctl shutdown all >/dev/null 2>&1; then
-      log "WARNING: 'xcrun simctl shutdown all' failed during cleanup -- shared simulator state may be dirty"
-      dirty=1
-    fi
-
-    # The while-loop below runs as the last stage of a pipe, i.e. in its own
-    # subshell -- variables it sets are invisible to this shell, and its
-    # natural exit status is dominated by `read` hitting EOF (the common,
-    # totally fine "zero clones found" case), not by whether a delete
-    # actually failed. Use a marker file instead of trusting `$?` off the
-    # pipe so a real delete failure is never confused with "nothing to do".
-    local clone_fail_marker
-    clone_fail_marker="$(mktemp -u -t free-lunch-clone-fail)"
-    rm -f "$clone_fail_marker" 2>/dev/null
-
-    # Enumeration honesty: `xcrun simctl list devices --json` is captured to
-    # a file FIRST, with its own exit status checked explicitly, rather than
-    # feeding it directly into the parse pipe below. If enumeration itself
-    # fails, we have no idea whether stray clones exist -- that must count
-    # as a dirty cleanup (loud warning + nonzero exit), never as a silent
-    # "zero clones found".
-    local devices_list_file
-    devices_list_file="$(mktemp -t free-lunch-cleanup-devices)"
-
-    if ! xcrun simctl list devices --json > "$devices_list_file" 2>/dev/null; then
-      log "WARNING: 'xcrun simctl list devices --json' failed during cleanup -- cannot enumerate stray clone devices, shared simulator state may be dirty"
-      dirty=1
-    else
-      grep -E '"udid"|"name"' "$devices_list_file" \
-        | paste -d '\t' - - \
-        | grep 'Clone of ' \
-        | sed -E 's/.*"udid" : "([^"]+)".*/\1/' \
-        | while IFS= read -r clone_udid; do
-            [ -n "$clone_udid" ] || continue
-            log "deleting stray clone device: $clone_udid"
-            if ! xcrun simctl delete "$clone_udid" >/dev/null 2>&1; then
-              log "WARNING: failed to delete stray clone device $clone_udid"
-              touch "$clone_fail_marker"
-            fi
-          done
-
-      if [ -f "$clone_fail_marker" ]; then
-        log "WARNING: one or more stray 'Clone of' devices could not be deleted -- shared simulator state may be dirty"
-        dirty=1
-        rm -f "$clone_fail_marker"
+    local udid shutdown_output
+    for udid in "$IPHONE_UDID" "$WATCH_UDID"; do
+      [ -n "$udid" ] || continue
+      if shutdown_output="$(xcrun simctl shutdown "$udid" 2>&1)"; then
+        continue
       fi
-    fi
-
-    rm -f "$devices_list_file"
+      if printf '%s\n' "$shutdown_output" | grep -Eqi 'already.*shut[ -]*down|current state: shutdown'; then
+        log "simulator $udid was already shut down during cleanup"
+        continue
+      fi
+      log "WARNING: failed to shut down simulator $udid during cleanup -- this project's simulator state may be dirty"
+      [ -z "$shutdown_output" ] || printf '%s\n' "$shutdown_output" >&2
+      dirty=1
+    done
 
     rm -f "$OWNER_FILE"
     rmdir "$LOCK_DIR" 2>/dev/null
@@ -299,8 +265,7 @@ reclaim_stale_lock_if_any() {
 
   rm -f "$OWNER_FILE"
   rmdir "$LOCK_DIR" 2>/dev/null
-  log "shutting down all simulators to clear residual state left by the orphaned lock"
-  xcrun simctl shutdown all >/dev/null 2>&1
+  log "stale lock removed; the named pair's state will be reset by the normal idempotent boot step"
   return 0
 }
 
@@ -494,8 +459,9 @@ xcrun simctl bootstatus "$WATCH_UDID" -b
 # A booted device is not yet a device xcodebuild can see. On fresh macos-26
 # runners xcodebuild lists no simulators at all for a while after both boots
 # finish, then every simulator appears at once; simctl sees them throughout.
-# A 12-job probe on 2026-10-29 measured 82-386 s before they appeared, and
-# neither -runFirstLaunch nor restarting CoreSimulatorService shortened it.
+# A sibling project's CI observed long visibility delays on GitHub macos-26
+# runners, and neither -runFirstLaunch nor restarting CoreSimulatorService
+# shortened them.
 # Poll -showdestinations until the device appears (15 minutes is about twice
 # the worst case seen), and fail with xcodebuild's own output and the simctl
 # inventory instead of a bare destination error.
@@ -548,11 +514,11 @@ xcodebuild build \
 # Both run through this one script/lock so a change to either device's
 # acceptance coverage never needs a second, parallel script.
 #
-# A suite that fails gets one bounded second pass. On GitHub's macos-26
-# runners, CI attempts of identical code (2026-10-29/30) each failed a
-# different single UI test: a dropped tap, a skip that never ran, a 5 s wait
-# starved by 4 s accessibility snapshots. Cause unproven, never the same test
-# twice. So when a suite fails at most MAX_RETRIED_TESTS tests, exactly those
+# A suite that fails gets one bounded second pass. A sibling project's CI on
+# GitHub macos-26 runners observed differing isolated UI-test failures: a
+# dropped tap, a skip that never ran, and an accessibility-snapshot timing
+# issue. Cause unproven, never the same test twice. So when a suite fails at
+# most MAX_RETRIED_TESTS tests, exactly those
 # run again in a fresh xcodebuild (its own result bundle, next to the first).
 # The suite passes only if every one of them passes the second time. More
 # failures than that, or a failure with no failed test (a crash or build

@@ -86,9 +86,13 @@ jobs:
               matches = [item for item in items if item.get("isAvailable", True) and predicate(item)]
               if not matches:
                   raise SystemExit(f"no available {description} found")
+              # Names make equal version keys deterministic across simctl order.
               return max(
                   matches,
-                  key=lambda item: version_key(f"{item.get('name', '')} {item.get('identifier', '')}"),
+                  key=lambda item: (
+                      version_key(f"{item.get('name', '')} {item.get('identifier', '')}"),
+                      item.get("name", ""),
+                  ),
               )
 
           iphone_runtime = newest(
