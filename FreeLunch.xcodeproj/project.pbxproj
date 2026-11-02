@@ -13,6 +13,7 @@
 		22070383C9F9C5C3E3F45B4C /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 716C70C329BEC33FB63A5D3B /* ContentView.swift */; };
 		2B824F8D1E4216FCAB3431AD /* PostLogSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF4E7858E9E417CA0CED748F /* PostLogSheet.swift */; };
 		2E9D01A1A072F30196B84FF8 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5A1137B70D27FAA6C64443FB /* Assets.xcassets */; };
+		2EC333F02B56C559FD203002 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = C3BDFCCE7CE7B98F842FB6FD /* PrivacyInfo.xcprivacy */; };
 		3829B76DE6D58FBB014F737C /* FreeLunchWatchUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4CD6BC021A997EE9AD55183 /* FreeLunchWatchUITests.swift */; };
 		3BE214ADBE29FAC13C2F3A9C /* FreeLunchPhoneApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D35D635BB6BE1AE80806C716 /* FreeLunchPhoneApp.swift */; };
 		43A055386694F0BBBB007DA3 /* PostLogSurfaceUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 573A3D367D28DA6DF4ABA0E1 /* PostLogSurfaceUITests.swift */; };
@@ -31,6 +32,7 @@
 		B7C1960A2883243CCFD98516 /* TimelineStubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50C603EB2609C5735D63C113 /* TimelineStubView.swift */; };
 		BAA1603625F9A63BE5D90EB3 /* PhoneAppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFF7023C411D68F0048270A /* PhoneAppModel.swift */; };
 		D3641B887398276FB6A4A7A0 /* FLCore in Frameworks */ = {isa = PBXBuildFile; productRef = 18F78B8488A1AF117DE2B3D7 /* FLCore */; };
+		E2359ED93CF452A763B2EB92 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 40E4FBB88BCFECD74456D28E /* PrivacyInfo.xcprivacy */; };
 		E574217A3F1CD32EF984CCF9 /* LateLoggingUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 582BBD510237D8253DD42500 /* LateLoggingUITests.swift */; };
 		EC2769BED01525329EE091C6 /* PlateScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C4D4C4BCA58931A4BBD630D /* PlateScreen.swift */; };
 /* End PBXBuildFile section */
@@ -65,6 +67,7 @@
 		0C041CB01BB43E0E99EFE893 /* KitLinkage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KitLinkage.swift; sourceTree = "<group>"; };
 		2616E4EA510F3F97025F0B79 /* FreeLunchKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = FreeLunchKit; path = FreeLunchKit; sourceTree = SOURCE_ROOT; };
 		3D05691542F6E9682851346E /* LoggedAtSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoggedAtSheet.swift; sourceTree = "<group>"; };
+		40E4FBB88BCFECD74456D28E /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		50C603EB2609C5735D63C113 /* TimelineStubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineStubView.swift; sourceTree = "<group>"; };
 		573A3D367D28DA6DF4ABA0E1 /* PostLogSurfaceUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostLogSurfaceUITests.swift; sourceTree = "<group>"; };
 		582BBD510237D8253DD42500 /* LateLoggingUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LateLoggingUITests.swift; sourceTree = "<group>"; };
@@ -82,6 +85,7 @@
 		94F50AC650A166908A40143A /* FreeLunchWatchUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FreeLunchWatchUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		9E5485E8BD770E8120F8AE4B /* KitLinkage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KitLinkage.swift; sourceTree = "<group>"; };
 		C18D1936E5DA5174ABA8BD64 /* PlateEntrySheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlateEntrySheets.swift; sourceTree = "<group>"; };
+		C3BDFCCE7CE7B98F842FB6FD /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		CD4E237E1E697069AAD7F1D6 /* FreeLunchPhoneUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeLunchPhoneUITests.swift; sourceTree = "<group>"; };
 		D35D635BB6BE1AE80806C716 /* FreeLunchPhoneApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeLunchPhoneApp.swift; sourceTree = "<group>"; };
 		D4CD6BC021A997EE9AD55183 /* FreeLunchWatchUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeLunchWatchUITests.swift; sourceTree = "<group>"; };
@@ -133,6 +137,7 @@
 				C18D1936E5DA5174ABA8BD64 /* PlateEntrySheets.swift */,
 				6C4D4C4BCA58931A4BBD630D /* PlateScreen.swift */,
 				EF4E7858E9E417CA0CED748F /* PostLogSheet.swift */,
+				40E4FBB88BCFECD74456D28E /* PrivacyInfo.xcprivacy */,
 				8D5C97B8732CC003AF128426 /* ScaleSessionViews.swift */,
 				50C603EB2609C5735D63C113 /* TimelineStubView.swift */,
 			);
@@ -170,6 +175,7 @@
 				7CCC1F752898DFC0A21F7E16 /* FreeLunchWatch.entitlements */,
 				8E52848070211DD91FA758AF /* FreeLunchWatchApp.swift */,
 				9E5485E8BD770E8120F8AE4B /* KitLinkage.swift */,
+				C3BDFCCE7CE7B98F842FB6FD /* PrivacyInfo.xcprivacy */,
 			);
 			path = FreeLunchWatch;
 			sourceTree = "<group>";
@@ -333,6 +339,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				1B7A16B6A38A4BDB73D36E03 /* Assets.xcassets in Resources */,
+				2EC333F02B56C559FD203002 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -341,6 +348,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				2E9D01A1A072F30196B84FF8 /* Assets.xcassets in Resources */,
+				E2359ED93CF452A763B2EB92 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

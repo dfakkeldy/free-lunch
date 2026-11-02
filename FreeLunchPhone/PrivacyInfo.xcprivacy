@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- SPDX-License-Identifier: GPL-3.0-or-later
+     Free Lunch sends nothing off the device yet: no tracking, no tracking
+     domains, no collected data types. The iPhone app, the watch app and FreeLunchKit call no required-reason API today (scanned 2026-11-02), so there are no accessed-API entries.
+     Re-scan for required-reason APIs (UserDefaults and @AppStorage, file
+     timestamps, system uptime, disk space, active keyboards) whenever app
+     or FreeLunchKit code starts using one, and add its entry here. -->
+<plist version="1.0">
+<dict>
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array/>
+</dict>
+</plist>
