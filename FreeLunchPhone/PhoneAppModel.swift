@@ -21,6 +21,9 @@ final class PhoneAppModel {
         static let seedDraft = "-FLUITestSeedDraft"
         /// Seed two synthetic catalog foods for the weighing-flow tests.
         static let seedFoods = "-FLUITestSeedFoods"
+        /// Seed one synthetic plate logged at this time yesterday, so a
+        /// move into yesterday has a non-empty day to join.
+        static let seedLoggedYesterday = "-FLUITestSeedLoggedYesterday"
     }
 
     private(set) var flow = PlateFlow()
@@ -31,6 +34,9 @@ final class PhoneAppModel {
     /// The weigh-as-you-go session of each open plate (spec §2). In memory
     /// only: it ends when the plate closes or is logged.
     private(set) var scaleSessions: [UUID: PlateScaleSession] = [:]
+    /// The last change of a logged plate's time, shown on that plate until
+    /// it closes (spec §2 acceptance #8: both days' totals after the move).
+    private(set) var lastMove: LoggedAtMoveSummary?
     var errorMessage: String?
 
     private let store: SwiftDataStore?
@@ -57,6 +63,9 @@ final class PhoneAppModel {
         }
         if arguments.contains(LaunchArgument.seedFoods) {
             seedSyntheticFoods()
+        }
+        if arguments.contains(LaunchArgument.seedLoggedYesterday) {
+            seedSyntheticLoggedYesterday()
         }
         reload()
     }
@@ -129,11 +138,13 @@ final class PhoneAppModel {
     }
 
     func open(_ meal: MealEntryData) {
+        lastMove = nil
         flow.open(plateID: meal.id)
     }
 
     func closePlate() {
         flow.closePlate()
+        lastMove = nil
         scaleSessions.removeAll()
         reload()
     }
@@ -231,16 +242,77 @@ final class PhoneAppModel {
 
     /// The explicit Log action: the only path from draft to logged. Pops
     /// the plate and presents the post-log sheet over the timeline.
-    func log(mealID: UUID) {
+    /// `at == nil` is the one-tap default, now; an earlier time logs the
+    /// plate late (spec §2 "Log"), and the sheet then speaks of that day
+    /// with that day's totals and target. A future time is refused.
+    func log(mealID: UUID, at chosen: Date? = nil) {
         perform {
             guard let service else { return }
-            let logged = try service.log(mealID: mealID)
+            // The plate is committed before the day's totals are read, so
+            // refresh even if that read throws: the screens never show a
+            // logged plate as a draft. (No post-log sheet then; the error
+            // alert says why.)
+            defer { reload() }
+            let logged = try service.logPlate(mealID: mealID, at: chosen, calendar: calendar)
             scaleSessions[mealID] = nil
-            reload()
-            let day = logged.loggedAt ?? Date()
-            let dayTotals = try service.dayTotals(containing: day, calendar: calendar)
-            flow.didLog(PostLogSummary(dayTotals: dayTotals, target: try dailyTarget(on: day)))
+            let day = logged.day.day
+            flow.didLog(PostLogSummary(
+                dayTotals: logged.day.totals,
+                target: try dailyTarget(on: day),
+                day: LoggedDay(loggedAt: day, now: Date(), calendar: calendar)
+            ))
         }
+    }
+
+    // MARK: Late logging
+
+    /// Edits a logged plate's `loggedAt` (spec §2: logged meals stay
+    /// editable). The plate moves to the new day and both days' totals are
+    /// recomputed from the store; the plate then shows both days' totals
+    /// (`lastMove`). No post-log sheet: only Log fires it.
+    func moveLoggedMeal(_ mealID: UUID, to loggedAt: Date) {
+        perform {
+            guard let service else { return }
+            // As in `log`: the move is committed before the totals are read.
+            defer { reload() }
+            let move = try service.moveLoggedMeal(mealID: mealID, to: loggedAt, calendar: calendar)
+            let now = Date()
+            lastMove = LoggedAtMoveSummary(
+                mealID: mealID,
+                previousDay: LoggedDay(loggedAt: move.previousDay.day, now: now, calendar: calendar),
+                previousTotals: move.previousDay.totals,
+                currentDay: LoggedDay(loggedAt: move.newDay.day, now: now, calendar: calendar),
+                currentTotals: move.newDay.totals
+            )
+        }
+    }
+
+    /// The move readout for `mealID`, if its time was just changed.
+    func moveSummary(for mealID: UUID) -> LoggedAtMoveSummary? {
+        lastMove?.mealID == mealID ? lastMove : nil
+    }
+
+    /// A HealthKit-imported plate is immutable (spec §1), so its time is
+    /// shown but can't be changed.
+    func canChangeLoggedAt(of meal: MealEntryData) -> Bool {
+        meal.state == .logged && meal.source != .healthKitImport
+    }
+
+    /// "Yesterday, 12:30" for a logged plate; nil for a draft.
+    func loggedAtText(for meal: MealEntryData) -> String? {
+        guard meal.state == .logged, let loggedAt = meal.loggedAt else { return nil }
+        let day = LoggedDay(loggedAt: loggedAt, now: Date(), calendar: calendar)
+        // The clock time in the same calendar and time zone that named the day.
+        let time = Date.FormatStyle(date: .omitted, time: .shortened, calendar: calendar, timeZone: calendar.timeZone)
+        return "\(day.name), \(loggedAt.formatted(time))"
+    }
+
+    func loggedDay(for date: Date, now: Date) -> LoggedDay {
+        LoggedDay(loggedAt: date, now: now, calendar: calendar)
+    }
+
+    func sameTimeYesterday(now: Date) -> Date {
+        LateLogTime.sameTimeYesterday(now: now, calendar: calendar)
     }
 
     // MARK: Private
@@ -271,6 +343,8 @@ final class PhoneAppModel {
     private func perform(_ action: () throws -> Void) {
         do {
             try action()
+        } catch LateLoggingError.loggedAtInFuture {
+            errorMessage = "A plate can't be logged at a time that hasn't happened yet."
         } catch {
             errorMessage = "\(error)"
         }
@@ -289,6 +363,24 @@ final class PhoneAppModel {
                 per100g: NutritionValues(kcal: Kilocalories(50), protein: Grams(4), carbs: Grams(5), fat: Grams(2)),
                 origin: .custom
             ))
+        }
+    }
+
+    private func seedSyntheticLoggedYesterday() {
+        perform {
+            guard let service else { return }
+            let plate = try service.startDraft()
+            try service.addAdHocItem(
+                name: "Synthetic soup",
+                quantity: Grams(300),
+                nutrition: NutritionValues(kcal: Kilocalories(400), protein: Grams(20), carbs: Grams(50), fat: Grams(12)),
+                toMeal: plate.id
+            )
+            try service.logPlate(
+                mealID: plate.id,
+                at: LateLogTime.sameTimeYesterday(now: Date(), calendar: calendar),
+                calendar: calendar
+            )
         }
     }
 

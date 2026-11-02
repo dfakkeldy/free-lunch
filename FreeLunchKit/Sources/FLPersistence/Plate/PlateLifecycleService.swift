@@ -6,8 +6,8 @@ import Foundation
 
 @MainActor
 public final class PlateLifecycleService {
-    private let store: any PlateLifecycleStore
-    private let now: @Sendable () -> Date
+    let store: any PlateLifecycleStore
+    let now: @Sendable () -> Date
 
     public init(store: any PlateLifecycleStore, now: @escaping @Sendable () -> Date = { Date() }) {
         self.store = store

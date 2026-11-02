@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // The post-log surface (spec §2 "Post-log surface", acceptance #7): one
 // dismissible sheet, remaining today first, daily totals beneath, and
-// nothing after it. The section order is fixed by the type, not by the
-// view, and `snapshot` renders exactly the titles and lines the sheet shows
-// so a text snapshot pins what the user sees.
+// nothing after it. A plate logged late (acceptance #8) shows the day it
+// was logged into: "Remaining yesterday" and yesterday's numbers. The
+// section order is fixed by the type, not by the view, and `snapshot`
+// renders exactly the titles and lines the sheet shows so a text snapshot
+// pins what the user sees.
 import FLCore
 import Foundation
 
@@ -21,26 +23,31 @@ public struct PostLogSummary: Sendable, Hashable {
         public var id: SectionKind { kind }
     }
 
-    public static let remainingTitle = "Remaining today"
-    public static let totalsTitle = "Today's totals"
+    /// The headings for a plate logged today.
+    public static let remainingTitle = LoggedDay.today.remainingTitle
+    public static let totalsTitle = LoggedDay.today.totalsTitle
     public static let noTargetLine = "No target adopted"
 
     public let remaining: RemainingToday
     public let dayTotals: MacroAmounts
+    /// The day the plate was logged into, relative to when it was logged.
+    public let day: LoggedDay
 
     /// `dayTotals` are the logged totals of the day the plate was logged
-    /// into, this plate included.
-    public init(dayTotals: NutritionTotals, target: DailyTarget?) {
+    /// into, this plate included, and `target` is that day's target. `day`
+    /// names that day in the headings; it defaults to today.
+    public init(dayTotals: NutritionTotals, target: DailyTarget?, day: LoggedDay = .today) {
         let totals = MacroAmounts(dayTotals)
         self.dayTotals = totals
+        self.day = day
         remaining = RemainingToday(target: target, consumed: totals)
     }
 
     /// Always remaining first, then daily totals (locked priority).
     public var sections: [Section] {
         [
-            Section(kind: .remaining, title: Self.remainingTitle, lines: remainingLines),
-            Section(kind: .dailyTotals, title: Self.totalsTitle, lines: totalsLines)
+            Section(kind: .remaining, title: day.remainingTitle, lines: remainingLines),
+            Section(kind: .dailyTotals, title: day.totalsTitle, lines: totalsLines)
         ]
     }
 
