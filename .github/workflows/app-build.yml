@@ -43,18 +43,45 @@ jobs:
             -destination 'generic/platform=watchOS Simulator' \
             -derivedDataPath build/dd build CODE_SIGNING_ALLOWED=NO
 
+      - name: Select available simulators
+        run: |
+          set -euo pipefail
+          IPHONE_UDID=$(xcrun simctl list devices available -j | jq -r '[.devices[][] | select(.isAvailable == true and (.name | startswith("iPhone"))) | .udid] | first // empty')
+          WATCH_UDID=$(xcrun simctl list devices available -j | jq -r '[.devices[][] | select(.isAvailable == true and (.name | startswith("Apple Watch"))) | .udid] | first // empty')
+          test -n "$IPHONE_UDID"
+          test -n "$WATCH_UDID"
+          echo "IPHONE_UDID=$IPHONE_UDID" >> "$GITHUB_ENV"
+          echo "WATCH_UDID=$WATCH_UDID" >> "$GITHUB_ENV"
+
+      - name: Test iPhone app placeholder empty state
+        run: |
+          xcodebuild test -project FreeLunch.xcodeproj -scheme FreeLunchPhone \
+            -destination "id=$IPHONE_UDID" \
+            -derivedDataPath build/dd CODE_SIGNING_ALLOWED=NO
+
+      - name: Test Watch app placeholder empty state
+        run: |
+          xcodebuild test -project FreeLunch.xcodeproj -scheme FreeLunchWatch \
+            -destination "id=$WATCH_UDID" \
+            -derivedDataPath build/dd CODE_SIGNING_ALLOWED=NO
+
       - name: Verify bundle identifiers and plist keys
         run: |
           set -euo pipefail
           P=$(find build/dd -path '*Debug-iphonesimulator/FreeLunchPhone.app' -type d | head -1)
           W=$(find build/dd -path '*Debug-watchsimulator/FreeLunchWatch.app' -type d | head -1)
           test -n "$P" && test -n "$W"
+          test -d "$P/Watch/FreeLunchWatch.app"
+          E="$P/Watch/FreeLunchWatch.app"
           pb() { /usr/libexec/PlistBuddy -c "Print :$2" "$1/Info.plist"; }
           [[ "$(pb "$P" CFBundleIdentifier)" == "com.freelunch.nutrition" ]]
           [[ "$(pb "$W" CFBundleIdentifier)" == "com.freelunch.nutrition.watchkitapp" ]]
+          [[ "$(pb "$E" CFBundleIdentifier)" == "com.freelunch.nutrition.watchkitapp" ]]
           [[ "$(pb "$P" CFBundleDisplayName)" == "Free Lunch" ]]
           [[ "$(pb "$W" CFBundleDisplayName)" == "Free Lunch" ]]
           [[ "$(pb "$P" ITSAppUsesNonExemptEncryption)" == "false" ]]
           [[ "$(pb "$W" ITSAppUsesNonExemptEncryption)" == "false" ]]
           [[ "$(pb "$W" WKCompanionAppBundleIdentifier)" == "com.freelunch.nutrition" ]]
+          [[ "$(/usr/libexec/PlistBuddy -c "Print :com.apple.developer.healthkit" FreeLunchPhone/FreeLunchPhone.entitlements)" == "true" ]]
+          [[ "$(/usr/libexec/PlistBuddy -c "Print :com.apple.developer.healthkit" FreeLunchWatch/FreeLunchWatch.entitlements)" == "true" ]]
           echo OK

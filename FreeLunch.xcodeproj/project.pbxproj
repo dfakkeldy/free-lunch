@@ -12,8 +12,10 @@
 		1B7A16B6A38A4BDB73D36E03 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8F32FDE49239668EFDAD49E1 /* Assets.xcassets */; };
 		22070383C9F9C5C3E3F45B4C /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 716C70C329BEC33FB63A5D3B /* ContentView.swift */; };
 		2E9D01A1A072F30196B84FF8 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5A1137B70D27FAA6C64443FB /* Assets.xcassets */; };
+		3829B76DE6D58FBB014F737C /* FreeLunchWatchUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4CD6BC021A997EE9AD55183 /* FreeLunchWatchUITests.swift */; };
 		3BE214ADBE29FAC13C2F3A9C /* FreeLunchPhoneApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D35D635BB6BE1AE80806C716 /* FreeLunchPhoneApp.swift */; };
 		5AC90D8DA1A9487C9C65D8E4 /* FLEnergyCore in Frameworks */ = {isa = PBXBuildFile; productRef = 6A9369D5ADF9AE106721C644 /* FLEnergyCore */; };
+		5AE3A82545AE1A49BE7E732D /* FreeLunchPhoneUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD4E237E1E697069AAD7F1D6 /* FreeLunchPhoneUITests.swift */; };
 		5B7CC30E5F25DCDB99A066F9 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 689D919131D523E880B8E445 /* ContentView.swift */; };
 		6D57620880ECAB84EE6D848E /* FreeLunchWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 01F26E05BC6A8B267FCE56C2 /* FreeLunchWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		7FD24E5906A54284CEF27A8E /* FreeLunchWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E52848070211DD91FA758AF /* FreeLunchWatchApp.swift */; };
@@ -59,8 +61,12 @@
 		7CCC1F752898DFC0A21F7E16 /* FreeLunchWatch.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FreeLunchWatch.entitlements; sourceTree = "<group>"; };
 		8E52848070211DD91FA758AF /* FreeLunchWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeLunchWatchApp.swift; sourceTree = "<group>"; };
 		8F32FDE49239668EFDAD49E1 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		94F50AC650A166908A40143A /* FreeLunchWatchUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FreeLunchWatchUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		9E5485E8BD770E8120F8AE4B /* KitLinkage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KitLinkage.swift; sourceTree = "<group>"; };
+		CD4E237E1E697069AAD7F1D6 /* FreeLunchPhoneUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeLunchPhoneUITests.swift; sourceTree = "<group>"; };
 		D35D635BB6BE1AE80806C716 /* FreeLunchPhoneApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeLunchPhoneApp.swift; sourceTree = "<group>"; };
+		D4CD6BC021A997EE9AD55183 /* FreeLunchWatchUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeLunchWatchUITests.swift; sourceTree = "<group>"; };
+		F293E4DAA9D599DB50DA1388 /* FreeLunchPhoneUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = FreeLunchPhoneUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -110,10 +116,20 @@
 			isa = PBXGroup;
 			children = (
 				7DEBF099D86E64BC9F6EAD25 /* FreeLunchPhone */,
+				A32E8240E6C8B8D7CE3E6476 /* FreeLunchPhoneUITests */,
 				B93CC62DC3137822B9431A05 /* FreeLunchWatch */,
+				FCF1125E2CDC0A1AD78F9FA3 /* FreeLunchWatchUITests */,
 				153079382BC838A9C4436F27 /* Packages */,
 				F5FE3C3CB02E4613ADD306E5 /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		A32E8240E6C8B8D7CE3E6476 /* FreeLunchPhoneUITests */ = {
+			isa = PBXGroup;
+			children = (
+				CD4E237E1E697069AAD7F1D6 /* FreeLunchPhoneUITests.swift */,
+			);
+			path = FreeLunchPhoneUITests;
 			sourceTree = "<group>";
 		};
 		B93CC62DC3137822B9431A05 /* FreeLunchWatch */ = {
@@ -132,14 +148,41 @@
 			isa = PBXGroup;
 			children = (
 				72AC05E5476BAEC79764F5C8 /* FreeLunchPhone.app */,
+				F293E4DAA9D599DB50DA1388 /* FreeLunchPhoneUITests.xctest */,
 				01F26E05BC6A8B267FCE56C2 /* FreeLunchWatch.app */,
+				94F50AC650A166908A40143A /* FreeLunchWatchUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		FCF1125E2CDC0A1AD78F9FA3 /* FreeLunchWatchUITests */ = {
+			isa = PBXGroup;
+			children = (
+				D4CD6BC021A997EE9AD55183 /* FreeLunchWatchUITests.swift */,
+			);
+			path = FreeLunchWatchUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		5C8FEA47E043C8EC16A782EA /* FreeLunchPhoneUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C475974A12A629B52F74B78F /* Build configuration list for PBXNativeTarget "FreeLunchPhoneUITests" */;
+			buildPhases = (
+				C49EFE05B59D98D420738841 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = FreeLunchPhoneUITests;
+			packageProductDependencies = (
+			);
+			productName = FreeLunchPhoneUITests;
+			productReference = F293E4DAA9D599DB50DA1388 /* FreeLunchPhoneUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		750139F8A71F5E0DCA3FAB88 /* FreeLunchPhone */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = C7B9E90E2F18F819D24CD2AB /* Build configuration list for PBXNativeTarget "FreeLunchPhone" */;
@@ -164,6 +207,23 @@
 			productName = FreeLunchPhone;
 			productReference = 72AC05E5476BAEC79764F5C8 /* FreeLunchPhone.app */;
 			productType = "com.apple.product-type.application";
+		};
+		A051B2A2C505214D5E4B73AB /* FreeLunchWatchUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F98834E1F16AB6599834DD10 /* Build configuration list for PBXNativeTarget "FreeLunchWatchUITests" */;
+			buildPhases = (
+				99A68175A14CCE1F4FE95EC4 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = FreeLunchWatchUITests;
+			packageProductDependencies = (
+			);
+			productName = FreeLunchWatchUITests;
+			productReference = 94F50AC650A166908A40143A /* FreeLunchWatchUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 		E2CE04A669CD0B842AD34300 /* FreeLunchWatch */ = {
 			isa = PBXNativeTarget;
@@ -194,8 +254,16 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					5C8FEA47E043C8EC16A782EA = {
+						DevelopmentTeam = "$(inherited)";
+						ProvisioningStyle = Automatic;
+					};
 					750139F8A71F5E0DCA3FAB88 = {
 						DevelopmentTeam = 8AXNA5B37R;
+						ProvisioningStyle = Automatic;
+					};
+					A051B2A2C505214D5E4B73AB = {
+						DevelopmentTeam = "$(inherited)";
 						ProvisioningStyle = Automatic;
 					};
 					E2CE04A669CD0B842AD34300 = {
@@ -223,6 +291,8 @@
 			targets = (
 				750139F8A71F5E0DCA3FAB88 /* FreeLunchPhone */,
 				E2CE04A669CD0B842AD34300 /* FreeLunchWatch */,
+				5C8FEA47E043C8EC16A782EA /* FreeLunchPhoneUITests */,
+				A051B2A2C505214D5E4B73AB /* FreeLunchWatchUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -257,6 +327,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		99A68175A14CCE1F4FE95EC4 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3829B76DE6D58FBB014F737C /* FreeLunchWatchUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C49EFE05B59D98D420738841 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5AE3A82545AE1A49BE7E732D /* FreeLunchPhoneUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		E0732442B243C37C6D27271F /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -278,6 +364,41 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		1CE75D43B401494CCE486923 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				DEVELOPMENT_TEAM = "$(inherited)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.freelunch.nutrition.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		2643AEADC9033F1EAB87F74B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				DEVELOPMENT_TEAM = "$(inherited)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.freelunch.nutrition.watchkitapp.uitests;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 4;
+			};
+			name = Release;
+		};
 		3418D68CE0FC7C4C2D25F4AA /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -339,6 +460,23 @@
 			};
 			name = Release;
 		};
+		34BD4602BC41041952F82C1C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				DEVELOPMENT_TEAM = "$(inherited)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.freelunch.nutrition.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
 		9AE60975E2D60B247545439A /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -348,7 +486,6 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "Free Lunch";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Free Lunch reads body weight and energy burned to compute energy balance.";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Free Lunch saves logged food energy and nutrients to Health.";
 				INFOPLIST_KEY_WKApplication = YES;
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.freelunch.nutrition;
 				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = NO;
@@ -368,7 +505,6 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "Free Lunch";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Free Lunch reads body weight and energy burned to compute energy balance.";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Free Lunch saves logged food energy and nutrients to Health.";
 				INFOPLIST_KEY_WKApplication = YES;
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.freelunch.nutrition;
 				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = NO;
@@ -497,6 +633,24 @@
 			};
 			name = Release;
 		};
+		F6F250EFEB97418B66486E9E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				DEVELOPMENT_TEAM = "$(inherited)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.freelunch.nutrition.watchkitapp.uitests;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 4;
+			};
+			name = Debug;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -518,11 +672,29 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
+		C475974A12A629B52F74B78F /* Build configuration list for PBXNativeTarget "FreeLunchPhoneUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				34BD4602BC41041952F82C1C /* Debug */,
+				1CE75D43B401494CCE486923 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		C7B9E90E2F18F819D24CD2AB /* Build configuration list for PBXNativeTarget "FreeLunchPhone" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				C1C2AB47574F49AD2D0F2552 /* Debug */,
 				D0B52AF129E84733371AF19C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		F98834E1F16AB6599834DD10 /* Build configuration list for PBXNativeTarget "FreeLunchWatchUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F6F250EFEB97418B66486E9E /* Debug */,
+				2643AEADC9033F1EAB87F74B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

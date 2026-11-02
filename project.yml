@@ -68,13 +68,36 @@ targets:
         INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp: NO
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
         INFOPLIST_KEY_NSHealthShareUsageDescription: "Free Lunch reads body weight and energy burned to compute energy balance."
-        INFOPLIST_KEY_NSHealthUpdateUsageDescription: "Free Lunch saves logged food energy and nutrients to Health."
         CODE_SIGN_ENTITLEMENTS: FreeLunchWatch/FreeLunchWatch.entitlements
         TARGETED_DEVICE_FAMILY: "4"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     dependencies:
       - package: FreeLunchKit
         product: FLCore
+
+  FreeLunchPhoneUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - FreeLunchPhoneUITests
+    testTarget: FreeLunchPhone
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.freelunch.nutrition.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        DEVELOPMENT_TEAM: "$(inherited)"
+
+  FreeLunchWatchUITests:
+    type: bundle.ui-testing
+    platform: watchOS
+    sources:
+      - FreeLunchWatchUITests
+    testTarget: FreeLunchWatch
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.freelunch.nutrition.watchkitapp.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        DEVELOPMENT_TEAM: "$(inherited)"
 
 schemes:
   FreeLunchPhone:
@@ -84,6 +107,9 @@ schemes:
     run:
       config: Debug
       executable: FreeLunchPhone
+    test:
+      targets:
+        - FreeLunchPhoneUITests
   FreeLunchWatch:
     build:
       targets:
@@ -91,3 +117,6 @@ schemes:
     run:
       config: Debug
       executable: FreeLunchWatch
+    test:
+      targets:
+        - FreeLunchWatchUITests
