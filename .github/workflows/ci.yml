@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package-tests:
+    name: FreeLunchKit package tests
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # Same pin as Burly: GitHub's macos-26 image documents Xcode 26.6 as
+      # the newest stable Xcode at this path. Fail with the installed paths
+      # in the log when the runner image changes so the pin can be reviewed.
+      - name: Select Xcode 26.6
+        run: |
+          XCODE_PATH=/Applications/Xcode_26.6.app
+          if [[ ! -d "$XCODE_PATH" ]]; then
+            echo "::error::Expected newest stable Xcode at $XCODE_PATH; available Xcodes follow"
+            find /Applications -maxdepth 1 -type d -name 'Xcode*.app' -print | sort
+            exit 1
+          fi
+          sudo xcode-select -s "$XCODE_PATH/Contents/Developer"
+          xcodebuild -version
+
+      - name: Run Swift package tests
+        working-directory: FreeLunchKit
+        run: swift test

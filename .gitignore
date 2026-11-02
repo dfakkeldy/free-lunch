@@ -1,0 +1,53 @@
+# Xcode
+#
+build/
+DerivedData/
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata/
+*.xccheckout
+*.moved-aside
+*.xcuserstate
+*.xcscmblueprint
+
+## Obj-C/Swift specific
+*.hmap
+
+## App packaging
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+## Playgrounds
+timeline.xctimeline
+playground.xcworkspace
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Packages/
+Package.pins
+
+# CocoaPods
+Pods/
+
+# fastlane
+fastlane/report.xml
+fastlane/README.md
+fastlane/Preview.html
+fastlane/test_output
+
+# Code Injection
+iOSInjectionProject/
+
+.DS_Store
+
+# Acceptance script output (screenshots, .xcresult bundles) -- regenerated
+# by Scripts/acceptance-sim.sh on every run, never a source artifact.
+Scripts/output/
