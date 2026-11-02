@@ -4,7 +4,7 @@ import XCTest
 
 final class FreeLunchPhoneUITests: XCTestCase {
     func testLaunchShowsPlaceholderEmptyState() {
-        let app = XCUIApplication()
+        let app = XCUIApplication(bundleIdentifier: "com.freelunch.nutrition")
         app.launch()
 
         let heading = app.staticTexts["phone.emptyState.heading"]

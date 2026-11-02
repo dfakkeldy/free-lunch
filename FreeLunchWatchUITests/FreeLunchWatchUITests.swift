@@ -4,7 +4,7 @@ import XCTest
 
 final class FreeLunchWatchUITests: XCTestCase {
     func testLaunchShowsPlaceholderEmptyState() {
-        let app = XCUIApplication()
+        let app = XCUIApplication(bundleIdentifier: "com.freelunch.nutrition.watchkitapp")
         app.launch()
 
         let heading = app.staticTexts["watch.emptyState.heading"]
