@@ -66,8 +66,9 @@ public protocol FoodCatalogStore: AnyObject {
 @MainActor
 public protocol MealStore: AnyObject {
     /// Inserts a whole plate as given, snapshots included (a new draft, a
-    /// watch marker, an import). Validates every id, reference, item shape
-    /// and the hunger range before inserting anything.
+    /// watch marker, an import). Validates every id, reference and item shape,
+    /// the hunger range, and that `loggedAt` is set exactly when the state
+    /// is `.logged`, before inserting anything.
     func createMeal(_ meal: MealEntryData) throws
     func meal(id: UUID) throws -> MealEntryData?
     /// Every meal, by `createdAt`, then id.

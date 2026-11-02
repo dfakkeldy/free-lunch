@@ -158,6 +158,10 @@ public final class SwiftDataStore: FreeLunchStore {
             throw FreeLunchStoreError.duplicateID(meal.id)
         }
         try validateHunger(meal.hunger)
+        // A logged meal without a time would never count toward a day total.
+        guard (meal.state == .logged) == (meal.loggedAt != nil) else {
+            throw FreeLunchStoreError.invalidMealState(meal.id)
+        }
 
         var itemIDs: Set<UUID> = []
         var resolved: [(food: FoodItem?, aiRecord: AIEstimationRecord?)] = []

@@ -21,6 +21,8 @@ public enum FreeLunchStoreError: Error, Equatable, Sendable {
     case importedRecordImmutable(UUID)
     /// The meal is already logged.
     case mealNotDraft(UUID)
+    /// A logged meal needs a `loggedAt`; a draft must not have one.
+    case invalidMealState(UUID)
     /// Hunger outside `DomainScale.hunger`.
     case invalidHunger(Int)
     /// Severity outside `DomainScale.sideEffectSeverity`.

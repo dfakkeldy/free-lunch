@@ -178,6 +178,12 @@ struct CascadeAndArchiveTests {
             try store.createMeal(MealEntryData(id: uid(293), createdAt: at(), hunger: 6, source: .phone))
         }
         #expect(throws: FreeLunchStoreError.invalidHunger(0)) { try store.setHunger(0, mealID: kept) }
+        #expect(throws: FreeLunchStoreError.invalidMealState(uid(296))) {
+            try store.createMeal(MealEntryData(id: uid(296), state: .logged, createdAt: at(), source: .healthKitImport))
+        }
+        #expect(throws: FreeLunchStoreError.invalidMealState(uid(297))) {
+            try store.createMeal(MealEntryData(id: uid(297), state: .draft, createdAt: at(), loggedAt: at(), source: .watchMarker))
+        }
         #expect(throws: FreeLunchStoreError.duplicateID(rice)) {
             try store.createFood(FoodItemData(id: rice, name: "Dup", per100g: nutrition(1, 1, 1, 1), origin: .custom))
         }
