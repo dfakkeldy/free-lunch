@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // The two weighing flows of spec §2 as the app drives them.
 //
-// Add-then-weigh: the quantity step's grams field is the scale reading, so
-// an item added from it is `.scaleWeighed`. Picking a ServingDef is a typed
-// amount, not a reading, and stays `.typed`.
+// Add-then-weigh: a reading entered in the quantity step's grams field is a
+// scale reading, so an item added from it is `.scaleWeighed`. Picking a
+// ServingDef, or confirming the prefilled last portion untouched, is not a
+// reading and stays `.typed`.
 //
 // Weigh-as-you-go: a plate-level scale session (tared or cumulative) turns
 // each reading into one item's grams. Both flows hand the store the same
@@ -21,13 +22,20 @@ import FLCore
 extension QuantityStep {
     /// The provenance of the item this step adds (spec §2 "Weighing flows").
     ///
-    /// A gram reading is a scale reading. A liquid's grams field is labelled
-    /// as millilitres, a jug or bottle measure rather than a scale reading,
-    /// so it stays `.typed`; so does a picked ServingDef.
+    /// A gram reading the user entered is a scale reading. Everything else
+    /// stays `.typed`:
+    /// - the prefilled `lastPortionGrams` confirmed without editing (spec §2
+    ///   "one-tap confirm"): a remembered portion, nothing was weighed;
+    /// - a liquid's grams field, labelled as millilitres: a jug or bottle
+    ///   measure rather than a scale reading;
+    /// - a picked ServingDef.
     public var provenance: ItemProvenance {
         switch mode {
-        case .grams: food.isLiquid ? .typed : .scaleWeighed
-        case .serving: .typed
+        case .grams:
+            if food.isLiquid || gramsText == prefilledGramsText { return .typed }
+            return .scaleWeighed
+        case .serving:
+            return .typed
         }
     }
 }

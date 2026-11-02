@@ -24,9 +24,26 @@ struct WeighingFlowsTests {
 
     @Test("a grams reading in the quantity step is a scale reading")
     func quantityStepGramsIsScaleWeighed() {
-        let step = QuantityStep(foodID: foodID, food: PlateFoodInfo(name: "Oats"), prefillGrams: 162.5)
+        var step = QuantityStep(foodID: foodID, food: PlateFoodInfo(name: "Oats"), prefillGrams: nil)
         #expect(step.mode == .grams)
+        step.gramsText = "162.5"
         #expect(step.resolvedGrams == Grams(162.5))
+        #expect(step.provenance == .scaleWeighed)
+    }
+
+    @Test("confirming the prefilled last portion untouched stays typed")
+    func quantityStepPrefillConfirmIsTyped() {
+        let step = QuantityStep(foodID: foodID, food: PlateFoodInfo(name: "Oats"), prefillGrams: 40)
+        #expect(step.gramsText == "40")
+        #expect(step.resolvedGrams == Grams(40))
+        #expect(step.provenance == .typed)
+    }
+
+    @Test("overwriting the prefilled portion with a reading is a scale reading")
+    func quantityStepEditedPrefillIsScaleWeighed() {
+        var step = QuantityStep(foodID: foodID, food: PlateFoodInfo(name: "Oats"), prefillGrams: 40)
+        step.gramsText = "47.5"
+        #expect(step.resolvedGrams == Grams(47.5))
         #expect(step.provenance == .scaleWeighed)
     }
 
@@ -44,9 +61,11 @@ struct WeighingFlowsTests {
 
     @Test("a liquid's millilitre field is a measure, not a scale reading")
     func quantityStepLiquidIsTyped() {
-        let step = QuantityStep(
-            foodID: foodID, food: PlateFoodInfo(name: "Milk", isLiquid: true), prefillGrams: 250
+        var step = QuantityStep(
+            foodID: foodID, food: PlateFoodInfo(name: "Milk", isLiquid: true), prefillGrams: nil
         )
+        step.gramsText = "250"
+        #expect(step.resolvedGrams == Grams(250))
         #expect(step.provenance == .typed)
     }
 
@@ -172,7 +191,8 @@ struct WeighingFlowsTests {
 
     @Test("both flows hand the store the same provenance")
     func flowsAgreeOnProvenance() {
-        let step = QuantityStep(foodID: foodID, food: PlateFoodInfo(name: "Oats"), prefillGrams: 62.5)
+        var step = QuantityStep(foodID: foodID, food: PlateFoodInfo(name: "Oats"), prefillGrams: nil)
+        step.gramsText = "62.5"
         #expect(step.provenance == PlateScaleSession.provenance)
         #expect(PlateScaleSession.provenance == .scaleWeighed)
     }

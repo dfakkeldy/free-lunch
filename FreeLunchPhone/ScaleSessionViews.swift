@@ -140,6 +140,11 @@ struct ScaleReadingSheet: View {
                 }
             }
             .onAppear { fieldFocused = true }
+            // The prompt answers the refused reading; once a new one is
+            // being typed it no longer applies.
+            .onChange(of: readingText) { _, text in
+                if !text.isEmpty { prompt = nil }
+            }
         }
         .presentationDetents([.medium, .large])
     }

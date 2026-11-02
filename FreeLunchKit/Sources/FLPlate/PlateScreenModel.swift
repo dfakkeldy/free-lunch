@@ -254,6 +254,10 @@ public struct QuantityStep: Sendable, Hashable, Identifiable {
     /// The typed reading. Prefilled from `lastPortionGrams`, empty when the
     /// food has never been logged.
     public var gramsText: String
+    /// What `gramsText` started as. A field still holding it was confirmed,
+    /// not typed, which is how provenance tells a remembered portion from a
+    /// fresh scale reading.
+    public let prefilledGramsText: String
     /// Typed count of servings; "1" by default.
     public var servingCountText: String
 
@@ -262,6 +266,7 @@ public struct QuantityStep: Sendable, Hashable, Identifiable {
         self.food = food
         mode = .grams
         gramsText = prefillGrams.map(PlateFormat.decimal) ?? ""
+        prefilledGramsText = gramsText
         servingCountText = "1"
     }
 
