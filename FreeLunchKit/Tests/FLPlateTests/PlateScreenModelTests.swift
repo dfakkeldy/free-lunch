@@ -181,6 +181,22 @@ struct QuantityStepTests {
         #expect(step.resolvedGrams == Grams(37.5))
         step.servingCountText = ""
         #expect(step.resolvedGrams == nil)
+        // 1333 × 75 g = 99 975 g, under the 100 000 cap; 1334 × 75 = 100 050 g, over it.
+        step.servingCountText = "1333"
+        #expect(step.resolvedGrams == Grams(99_975))
+        step.servingCountText = "1334"
+        #expect(step.resolvedGrams == nil)
+    }
+
+    @Test("absurd readings are refused before they reach the store")
+    func absurdGramsRefused() {
+        var step = QuantityStep(foodID: foodID, food: oats, prefillGrams: nil)
+        step.gramsText = "100000"
+        #expect(step.resolvedGrams == Grams(100_000))
+        for bad in ["100000.1", "1e300", "1e6"] {
+            step.gramsText = bad
+            #expect(step.resolvedGrams == nil, "\(bad)")
+        }
     }
 }
 
@@ -200,5 +216,25 @@ struct PlateFormatTests {
         #expect(PlateFormat.leftOrOver(0.4, unit: "g") == "0 g left")
         #expect(PlateFormat.leftOrOver(-0.4, unit: "g") == "0 g left")
         #expect(PlateFormat.leftOrOver(-0.5, unit: "g") == "1 g over")
+    }
+
+    @Test("a fat floor is reached or met, never 'over'")
+    func againstFloor() {
+        #expect(PlateFormat.againstFloor(15, floor: 40, name: "Fat", unit: "g") == "Fat 15 g to reach 40 g floor")
+        #expect(PlateFormat.againstFloor(0.6, floor: 40, name: "Fat", unit: "g") == "Fat 1 g to reach 40 g floor")
+        #expect(PlateFormat.againstFloor(0.4, floor: 40, name: "Fat", unit: "g") == "Fat floor of 40 g met")
+        #expect(PlateFormat.againstFloor(0, floor: 40, name: "Fat", unit: "g") == "Fat floor of 40 g met")
+        #expect(PlateFormat.againstFloor(-10, floor: 40, name: "Fat", unit: "g") == "Fat floor of 40 g met")
+    }
+
+    @Test("huge or non-finite values print a placeholder instead of trapping")
+    func hugeValuesDoNotTrap() {
+        #expect(PlateFormat.whole(1e300) == "–")
+        #expect(PlateFormat.whole(-1e300) == "–")
+        #expect(PlateFormat.decimal(1e300) == "–")
+        #expect(PlateFormat.decimal(.infinity) == "–")
+        #expect(PlateFormat.whole(.nan) == "–")
+        #expect(PlateFormat.whole(999_999_999) == "999999999")
+        #expect(PlateFormat.decimal(123_456.75) == "123456.8")
     }
 }

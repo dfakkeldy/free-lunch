@@ -112,8 +112,12 @@ struct AdHocEntrySheet: View {
                     TextField("Carbs (g)", text: $carbsText).keyboardType(.decimalPad)
                     TextField("Fat (g)", text: $fatText).keyboardType(.decimalPad)
                 }
-                Section {
-                    Toggle("Save as food", isOn: $saveAsFood)
+                // "New food" always saves a custom food; only an ad-hoc
+                // entry offers the choice.
+                if mode == .adHoc {
+                    Section {
+                        Toggle("Save as food", isOn: $saveAsFood)
+                    }
                 }
             }
             .navigationTitle(mode == .newFood ? "New food" : "Ad-hoc entry")
@@ -153,7 +157,7 @@ struct AdHocEntrySheet: View {
             carbs: Grams(carbs),
             fat: Grams(fat)
         )
-        return Entry(name: trimmed, grams: Grams(grams), nutrition: nutrition, saveAsFood: saveAsFood)
+        return Entry(name: trimmed, grams: Grams(grams), nutrition: nutrition, saveAsFood: mode == .newFood || saveAsFood)
     }
 
     private static func nonNegative(_ text: String, emptyIsZero: Bool) -> Double? {

@@ -68,7 +68,8 @@ public struct DailyTarget: Sendable, Hashable {
 /// target adopted" state (spec §2 "Post-log surface"). Never imputed.
 public enum RemainingToday: Sendable, Hashable {
     case noTargetAdopted
-    /// `remaining` is `target − consumed` per field; negative means over.
+    /// `remaining` is `target − consumed` per field; negative means over,
+    /// except for fat, where it means the floor is met.
     case vsTarget(target: DailyTarget, remaining: MacroAmounts)
 
     public init(target: DailyTarget?, consumed: MacroAmounts) {
@@ -274,7 +275,7 @@ public struct QuantityStep: Sendable, Hashable, Identifiable {
         case .serving(let serving):
             guard let count = PlateFormat.parsePositive(servingCountText) else { return nil }
             let grams = serving.grams * count
-            guard grams > 0, grams.isFinite else { return nil }
+            guard grams > 0, grams.isFinite, grams <= PlateFormat.maxInput else { return nil }
             return Grams(grams)
         }
     }
@@ -285,9 +286,18 @@ public struct QuantityStep: Sendable, Hashable, Identifiable {
 /// Locale-independent number formatting shared by the plate surfaces, so a
 /// snapshot is the same on every device and test host.
 public enum PlateFormat {
+    /// The largest number any plate input accepts (grams, millilitres, kcal,
+    /// macro grams or a serving count): 100 kg in one portion is already
+    /// absurd, and the cap keeps a pasted "1e300" out of the store.
+    public static let maxInput: Double = 100_000
+
+    /// Formatters print this placeholder instead of a value too large to
+    /// convert to `Int` safely, so a bad stored value can never trap a render.
+    static let displayLimit: Double = 1e15
+
     /// Nearest whole number, halves away from zero; never "-0".
     public static func whole(_ value: Double) -> String {
-        guard value.isFinite else { return "–" }
+        guard value.isFinite, abs(value) < displayLimit else { return "–" }
         let rounded = value.rounded()
         return rounded == 0 ? "0" : String(Int(rounded))
     }
@@ -295,7 +305,7 @@ public enum PlateFormat {
     /// One decimal at most, trailing ".0" dropped: 118 → "118",
     /// 37.5 → "37.5", 12.34 → "12.3".
     public static func decimal(_ value: Double) -> String {
-        guard value.isFinite else { return "–" }
+        guard value.isFinite, abs(value) < displayLimit else { return "–" }
         let tenths = Int((value * 10).rounded())
         if tenths == 0 { return "0" }
         let sign = tenths < 0 ? "-" : ""
@@ -304,12 +314,13 @@ public enum PlateFormat {
         return fraction == 0 ? "\(sign)\(magnitude / 10)" : "\(sign)\(magnitude / 10).\(fraction)"
     }
 
-    /// Accepts "." or "," as the decimal separator. Nil unless finite and > 0.
+    /// Accepts "." or "," as the decimal separator. Nil unless finite,
+    /// > 0 and at most `maxInput`.
     public static func parsePositive(_ text: String) -> Double? {
         let normalized = text
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: ",", with: ".")
-        guard let value = Double(normalized), value.isFinite, value > 0 else { return nil }
+        guard let value = Double(normalized), value.isFinite, value > 0, value <= maxInput else { return nil }
         return value
     }
 
@@ -337,6 +348,15 @@ public enum PlateFormat {
         let phrase = leftOrOver(remaining, unit: unit)
         let joiner = remaining.rounded() < 0 ? " " : " of "
         return "\(phrase)\(joiner)\(whole(target)) \(unit)"
+    }
+
+    /// The fat floor is a minimum, not a budget (spec §3), so eating past it
+    /// is never "over": "Fat 10 g to reach 40 g floor" below it, "Fat floor
+    /// of 40 g met" once reached.
+    public static func againstFloor(_ remaining: Double, floor: Double, name: String, unit: String) -> String {
+        remaining.rounded() > 0
+            ? "\(name) \(whole(remaining)) \(unit) to reach \(whole(floor)) \(unit) floor"
+            : "\(name) floor of \(whole(floor)) \(unit) met"
     }
 
     /// "640 kcal left" or "120 kcal over". Zero reads as "0 … left".

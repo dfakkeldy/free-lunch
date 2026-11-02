@@ -11,7 +11,8 @@
 // - The plate: 300 kcal P 30 C 20 F 10 + 200 kcal P 0 C 30 F 10
 //   = 500 kcal, P 30, C 50, F 20.
 // - Day after logging: 1500 kcal, P 90, C 170, F 50.
-//   Remaining: 500 kcal, P 60, C 90, F −10 (10 g over the floor).
+//   Remaining: 500 kcal, P 60, C 90, F −10. Fat is a floor, so 50 g
+//   against a 40 g floor reads "met", not "over".
 import FLCore
 import FLPlate
 import Foundation
@@ -70,7 +71,7 @@ struct PostLogSummaryTests {
           500 kcal left of 2000 kcal
           Protein 60 g left of 150 g
           Carbs 90 g left of 260 g
-          Fat floor 10 g over 40 g
+          Fat floor of 40 g met
         Today's totals
           1500 kcal
           P 90 g · C 170 g · F 50 g
@@ -100,7 +101,20 @@ struct PostLogSummaryTests {
             "120 kcal over 2000 kcal",
             "Protein 10 g over 150 g",
             "Carbs 0 g left of 260 g",
-            "Fat floor 0 g left of 40 g"
+            "Fat floor of 40 g met"
+        ])
+    }
+
+    @Test("below the fat floor says how much is still to reach it")
+    func belowFatFloor() {
+        // 2000 − 1200 = 800; 150 − 100 = 50; 260 − 150 = 110; 40 − 25 = 15.
+        let summary = PostLogSummary(dayTotals: PlateFixture.totals(1_200, 100, 150, 25), target: PlateFixture.target)
+
+        #expect(summary.sections[0].lines == [
+            "800 kcal left of 2000 kcal",
+            "Protein 50 g left of 150 g",
+            "Carbs 110 g left of 260 g",
+            "Fat 15 g to reach 40 g floor"
         ])
     }
 

@@ -63,7 +63,7 @@ public struct PostLogSummary: Sendable, Hashable {
                 PlateFormat.againstTarget(remaining.kcal, target: t.kcal, unit: "kcal"),
                 "Protein " + PlateFormat.againstTarget(remaining.proteinG, target: t.proteinG, unit: "g"),
                 "Carbs " + PlateFormat.againstTarget(remaining.carbsG, target: t.carbsG, unit: "g"),
-                "Fat floor " + PlateFormat.againstTarget(remaining.fatG, target: t.fatG, unit: "g")
+                PlateFormat.againstFloor(remaining.fatG, floor: t.fatG, name: "Fat", unit: "g")
             ]
         }
     }

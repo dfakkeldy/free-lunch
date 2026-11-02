@@ -30,10 +30,6 @@ struct PlateScreen: View {
     private func plate(_ meal: MealEntryData) -> some View {
         let header = model.header(for: meal)
         return List {
-            Section {
-                PlateHeaderView(header: header)
-            }
-
             Section("On the plate") {
                 let rows = model.rows(for: meal)
                 if rows.isEmpty {
@@ -71,6 +67,14 @@ struct PlateScreen: View {
         }
         .navigationTitle(meal.state == .draft ? "Plate" : "Logged plate")
         .navigationBarTitleDisplayMode(.inline)
+        // Pinned above the list, not a list section, so the running total,
+        // macro bar and remaining never scroll away (spec §2 "always visible").
+        .safeAreaInset(edge: .top, spacing: 0) {
+            PlateHeaderView(header: header)
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+                .background(.bar)
+        }
         .safeAreaInset(edge: .bottom) {
             if meal.state == .draft {
                 Button {
