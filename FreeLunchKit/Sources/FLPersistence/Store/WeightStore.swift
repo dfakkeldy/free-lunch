@@ -103,7 +103,7 @@ extension SwiftDataStore: WeightStore {
     }
 
     private func validate(_ weightKg: Double) throws {
-        guard weightKg.isFinite, weightKg >= 0 else {
+        guard weightKg.isFinite, weightKg > 0 else {
             throw WeightStoreError.invalidWeight(weightKg)
         }
     }

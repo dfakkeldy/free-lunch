@@ -121,6 +121,28 @@ struct CorrectedWeightViewTests {
         #expect(ignoresMalformed.first?.correctionID == older.id)
     }
 
+    @Test("newest wins across mixed actions on one sample")
+    func mixedActionsNewestWins() throws {
+        let sample = correctedWeightSample(911, kilograms: 82.1)
+        let replace = correctedWeightCorrection(
+            912,
+            target: sample.hkUUID,
+            day: 1,
+            replacement: try WeightSampleReplacement.encode(weight: Kilograms(80.1))
+        )
+        let excludeAfter = correctedWeightCorrection(913, target: sample.hkUUID, day: 2, action: .exclude)
+        let excludeBefore = correctedWeightCorrection(914, target: sample.hkUUID, day: 0, action: .exclude)
+
+        // exclude created after replace hides the sample.
+        #expect(CorrectedWeightView.derive(samples: [sample], corrections: [replace, excludeAfter]).isEmpty)
+
+        // replace created after exclude brings it back with the replacement value.
+        let back = CorrectedWeightView.derive(samples: [sample], corrections: [excludeBefore, replace])
+        #expect(back.count == 1)
+        #expect(back.first?.weightKg == 80.1)
+        #expect(back.first?.correctionID == replace.id)
+    }
+
     @Test("unrelated and undecodable corrections are ignored")
     func ignoresUnmatchedCorrections() {
         let sample = correctedWeightSample(911, kilograms: 81.9)

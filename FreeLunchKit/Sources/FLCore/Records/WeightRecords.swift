@@ -138,11 +138,18 @@ public enum CorrectedWeightView {
 
         let view = samples.compactMap { sample -> CorrectedWeightSample? in
             guard !sample.deletedInHK else { return nil }
-            let matching = relevant.filter { correction in
-                UUID(uuidString: correction.targetID) == sample.hkUUID
-                    && isApplicable(correction)
+            // Each candidate carries its decoded replacement so it is decoded once.
+            let candidates = relevant.compactMap { correction -> (CorrectionData, WeightSampleReplacement?)? in
+                guard UUID(uuidString: correction.targetID) == sample.hkUUID else { return nil }
+                switch correction.action {
+                case .exclude:
+                    return (correction, nil)
+                case .replace:
+                    guard let replacement = validReplacement(correction) else { return nil }
+                    return (correction, replacement)
+                }
             }
-            guard let correction = matching.max(by: isOlder) else {
+            guard let (correction, replacement) = candidates.max(by: { isOlder($0.0, $1.0) }) else {
                 return CorrectedWeightSample(
                     hkUUID: sample.hkUUID,
                     measuredAt: sample.measuredAt,
@@ -151,33 +158,14 @@ public enum CorrectedWeightView {
                     correctionID: nil
                 )
             }
-
-            switch correction.action {
-            case .exclude:
-                return nil
-            case .replace:
-                guard
-                    let data = correction.replacement,
-                    let replacement = try? WeightSampleReplacement.decode(data),
-                    replacement.weightKg.isFinite,
-                    replacement.weightKg > 0
-                else {
-                    return CorrectedWeightSample(
-                        hkUUID: sample.hkUUID,
-                        measuredAt: sample.measuredAt,
-                        weightKg: sample.weightKg,
-                        sourceBundleID: sample.sourceBundleID,
-                        correctionID: nil
-                    )
-                }
-                return CorrectedWeightSample(
-                    hkUUID: sample.hkUUID,
-                    measuredAt: replacement.measuredAt ?? sample.measuredAt,
-                    weightKg: replacement.weightKg,
-                    sourceBundleID: sample.sourceBundleID,
-                    correctionID: correction.id
-                )
-            }
+            guard let replacement else { return nil }  // newest applicable action is .exclude
+            return CorrectedWeightSample(
+                hkUUID: sample.hkUUID,
+                measuredAt: replacement.measuredAt ?? sample.measuredAt,
+                weightKg: replacement.weightKg,
+                sourceBundleID: sample.sourceBundleID,
+                correctionID: correction.id
+            )
         }
 
         return view.sorted { lhs, rhs in
@@ -191,18 +179,15 @@ public enum CorrectedWeightView {
         return lhs.id.uuidString < rhs.id.uuidString
     }
 
-    private static func isApplicable(_ correction: CorrectionData) -> Bool {
-        switch correction.action {
-        case .exclude:
-            return true
-        case .replace:
-            guard
-                let data = correction.replacement,
-                let replacement = try? WeightSampleReplacement.decode(data)
-            else {
-                return false
-            }
-            return replacement.weightKg.isFinite && replacement.weightKg > 0
+    private static func validReplacement(_ correction: CorrectionData) -> WeightSampleReplacement? {
+        guard
+            let data = correction.replacement,
+            let replacement = try? WeightSampleReplacement.decode(data),
+            replacement.weightKg.isFinite,
+            replacement.weightKg > 0
+        else {
+            return nil
         }
+        return replacement
     }
 }
