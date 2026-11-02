@@ -34,6 +34,7 @@ public protocol PlateLifecycleStore: MealStore, FoodCatalogStore {
 extension SwiftDataStore: PlateLifecycleStore {
     @discardableResult
     public func setLoggedAt(_ loggedAt: Date, mealID: UUID) throws -> MealEntryData {
+        try requireStoreKind(.phone, operation: "setLoggedAt")
         let meal = try editableMeal(id: mealID)
         guard meal.state == .logged else {
             throw PlateLifecycleError.mealNotLogged(mealID)
@@ -46,6 +47,7 @@ extension SwiftDataStore: PlateLifecycleStore {
 
     @discardableResult
     public func setItemQuantity(_ quantity: Grams, itemID: UUID) throws -> MealItemData {
+        try requireStoreKind(.phone, operation: "setItemQuantity")
         guard let item = try model(MealItem.self, id: itemID) else {
             throw FreeLunchStoreError.notFound(itemID)
         }
@@ -76,6 +78,7 @@ extension SwiftDataStore: PlateLifecycleStore {
     }
 
     public func updateAIEstimation(_ record: AIEstimationRecordData) throws {
+        try requireStoreKind(.phone, operation: "updateAIEstimation")
         guard let stored = try model(AIEstimationRecord.self, id: record.id) else {
             throw FreeLunchStoreError.notFound(record.id)
         }

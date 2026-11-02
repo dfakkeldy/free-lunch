@@ -23,6 +23,7 @@ public protocol AICaptureStore: PlateLifecycleStore {
 @MainActor
 extension SwiftDataStore: AICaptureStore {
     public func saveAICapture(_ snapshot: AICaptureSnapshot, toMeal mealID: UUID) throws {
+        try requireStoreKind(.phone, operation: "saveAICapture")
         let meal = try editableMeal(id: mealID)
         guard meal.state == .draft else { throw FreeLunchStoreError.mealNotDraft(mealID) }
 
@@ -189,13 +190,14 @@ extension SwiftDataStore: AICaptureStore {
     }
 
     public func aiCapture(forMeal mealID: UUID) throws -> AICaptureSnapshot {
+        try requireStoreKind(.phone, operation: "aiCapture")
         guard let meal = try model(MealEntry.self, id: mealID) else {
             throw FreeLunchStoreError.notFound(mealID)
         }
-        let records = try context.fetch(FetchDescriptor<AIEstimationRecord>())
-            .filter { record in
-                record.photo?.meal?.id == meal.id || record.items.contains { $0.meal?.id == meal.id }
-            }
+        let records = Dictionary(
+            (meal.photos.flatMap(\.aiRecords) + meal.items.compactMap(\.aiRecord)).map { ($0.id, $0) },
+            uniquingKeysWith: { first, _ in first }
+        ).values
             .sorted { lhs, rhs in
                 if lhs.createdAt != rhs.createdAt { return lhs.createdAt < rhs.createdAt }
                 return lhs.id.uuidString < rhs.id.uuidString

@@ -149,14 +149,14 @@ struct EnergyRecomputeTriggerTests {
         #expect(EnergyRecomputeReason.reasons(from: edited, to: try key(store, today: 25, rate: -0.25)) == [.rateGoalChanged])
     }
 
-    @Test("the key reads intake from the window before the first rendered day through today")
+    @Test("the key reads all seeded intake through today")
     func keyWindow() throws {
         let store = try makeInMemoryStore()
         try E.logMeals(store)
         let key = try key(store, today: 25)
         #expect(key.day == E.day(25))
         #expect(key.historyFrom == E.day(21))
-        // Days 0 (= 21 − 21) through 25.
+        // The seeded intake spans days 0 through 25, even though rendering starts on day 21.
         #expect(key.intake.map(\.day) == (0...25).map(E.day))
         #expect(key.intake.allSatisfy { $0.intakeKcal == 2_000 && $0.evidence == DayIntakeEvidence(loggedMealCount: 1) })
     }
