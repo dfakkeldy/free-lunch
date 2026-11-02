@@ -44,7 +44,8 @@ public final class PlateLifecycleService {
         provenance: ItemProvenance = .typed,
         toMeal mealID: UUID
     ) throws -> MealItemData {
-        try store.addItem(.catalog(foodID: foodID, quantity: quantity, provenance: provenance), toMeal: mealID)
+        try validateQuantity(quantity, mealID: mealID)
+        return try store.addItem(.catalog(foodID: foodID, quantity: quantity, provenance: provenance), toMeal: mealID)
     }
 
     @discardableResult
@@ -55,12 +56,9 @@ public final class PlateLifecycleService {
         toMeal mealID: UUID,
         saveAsFoodID: UUID? = nil
     ) throws -> (item: MealItemData, food: FoodItemData?) {
-        var savedFood: FoodItemData?
+        try validateQuantity(quantity, mealID: mealID)
         if let saveAsFoodID {
             let grams = quantity.value
-            guard grams > 0, grams.isFinite else {
-                throw PlateLifecycleError.invalidQuantity(mealID)
-            }
             try preflightEditableMeal(mealID)
             guard try store.food(id: saveAsFoodID) == nil else {
                 throw FreeLunchStoreError.duplicateID(saveAsFoodID)
@@ -71,15 +69,19 @@ public final class PlateLifecycleService {
                 per100g: nutritionPer100g(nutrition, quantityGrams: grams),
                 origin: .custom
             )
-            try store.createFood(food)
-            savedFood = food
+            let item = try store.addAdHocItemSavingFood(
+                food,
+                item: .adHoc(name: name, quantity: quantity, nutrition: nutrition, provenance: .typed),
+                toMeal: mealID
+            )
+            return (item, food)
         }
 
         let item = try store.addItem(
             .adHoc(name: name, quantity: quantity, nutrition: nutrition, provenance: .typed),
             toMeal: mealID
         )
-        return (item, savedFood)
+        return (item, nil)
     }
 
     @discardableResult
@@ -113,6 +115,13 @@ public final class PlateLifecycleService {
         }
         guard meal.source != .healthKitImport else {
             throw FreeLunchStoreError.importedRecordImmutable(id)
+        }
+    }
+
+    private func validateQuantity(_ quantity: Grams, mealID: UUID) throws {
+        let grams = quantity.value
+        guard grams > 0, grams.isFinite else {
+            throw PlateLifecycleError.invalidQuantity(mealID)
         }
     }
 

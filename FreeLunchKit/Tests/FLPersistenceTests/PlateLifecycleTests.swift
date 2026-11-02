@@ -143,6 +143,30 @@ struct PlateLifecycleTests {
         }
     }
 
+    @Test("moving a logged meal reconciles catalog-food typeahead recency")
+    func movingLoggedMealReconcilesTypeaheadRecency() throws {
+        let store = try makeInMemoryStore()
+        let lifecycle = service(store)
+        try store.createFood(oats)
+
+        let mealB = uid(44)
+        let yesterdayEvening = at(day: -1, hour: 18)
+        try lifecycle.startDraft(id: mealB)
+        try lifecycle.addCatalogItem(foodID: oats.id, quantity: Grams(80), toMeal: mealB)
+        try lifecycle.log(mealID: mealB, at: yesterdayEvening)
+
+        let mealA = uid(45)
+        try lifecycle.startDraft(id: mealA)
+        try lifecycle.addCatalogItem(foodID: oats.id, quantity: Grams(50), toMeal: mealA)
+        try lifecycle.log(mealID: mealA, at: at(hour: 10))
+        #expect(try store.food(id: oats.id)?.lastUsedAt == at(hour: 10))
+        #expect(try store.food(id: oats.id)?.lastPortionGrams == 50)
+
+        try lifecycle.setLoggedAt(at(day: -2, hour: 10), mealID: mealA)
+        #expect(try store.food(id: oats.id)?.lastUsedAt == yesterdayEvening)
+        #expect(try store.food(id: oats.id)?.lastPortionGrams == 80)
+    }
+
     @Test("editing a logged item rescales only its stored snapshot")
     func editLoggedMeal() throws {
         let store = try makeInMemoryStore()
@@ -206,6 +230,52 @@ struct PlateLifecycleTests {
         }
         #expect(try store.food(id: uid(51)) == nil)
         #expect(try lifecycle.addAdHocItem(name: "Only item", quantity: Grams(1), nutrition: nutrition(1, 1, 1, 1), toMeal: uid(70)).food == nil)
+    }
+
+    @Test("invalid item quantities are rejected before creating an item or food")
+    func invalidItemQuantitiesAreAtomic() throws {
+        let store = try makeInMemoryStore()
+        let lifecycle = service(store)
+        let mealID = uid(71)
+        try store.createFood(oats)
+        try lifecycle.startDraft(id: mealID)
+
+        // Grams itself cannot hold negative or non-finite values, so zero is the reachable invalid case.
+        for (index, grams) in [0.0].enumerated() {
+            #expect(throws: PlateLifecycleError.invalidQuantity(mealID)) {
+                try lifecycle.addCatalogItem(foodID: oats.id, quantity: Grams(grams), toMeal: mealID)
+            }
+            #expect(throws: PlateLifecycleError.invalidQuantity(mealID)) {
+                try lifecycle.addAdHocItem(
+                    name: "Invalid", quantity: Grams(grams), nutrition: nutrition(1, 1, 1, 1),
+                    toMeal: mealID, saveAsFoodID: uid(200 + index)
+                )
+            }
+        }
+
+        #expect(try store.meal(id: mealID)?.items.isEmpty == true)
+        #expect(try store.foods(includingArchived: true).map(\.id) == [oats.id])
+    }
+
+    @Test("saving an ad-hoc item and catalog food does not leave an orphan on failure")
+    func savingAdHocItemAndFoodIsAtomic() throws {
+        let store = try makeInMemoryStore()
+        let lifecycle = service(store)
+        let mealID = uid(72)
+        let item = MealItemInput.adHoc(
+            id: uid(73), name: "Existing", quantity: Grams(10), nutrition: nutrition(1, 1, 1, 1)
+        )
+        let unsavedFood = FoodItemData(
+            id: uid(74), name: "Would be orphaned", per100g: nutrition(10, 1, 1, 1), origin: .custom
+        )
+        try lifecycle.startDraft(id: mealID)
+        try store.addItem(item, toMeal: mealID)
+
+        #expect(throws: FreeLunchStoreError.duplicateID(item.id)) {
+            try store.addAdHocItemSavingFood(unsavedFood, item: item, toMeal: mealID)
+        }
+        #expect(try store.food(id: unsavedFood.id) == nil)
+        #expect(try store.meal(id: mealID)?.items.count == 1)
     }
 
     @Test("hunger is optional and constrained to one through five")

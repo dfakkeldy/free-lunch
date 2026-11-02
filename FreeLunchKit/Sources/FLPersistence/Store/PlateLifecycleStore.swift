@@ -18,6 +18,15 @@ public protocol PlateLifecycleStore: MealStore, FoodCatalogStore {
     @discardableResult
     func setItemQuantity(_ quantity: Grams, itemID: UUID) throws -> MealItemData
 
+    /// Saves an ad-hoc item and its optional catalog counterpart together.
+    /// A failed save leaves neither staged for a later commit.
+    @discardableResult
+    func addAdHocItemSavingFood(
+        _ food: FoodItemData,
+        item: MealItemInput,
+        toMeal mealID: UUID
+    ) throws -> MealItemData
+
     func updateAIEstimation(_ record: AIEstimationRecordData) throws
 }
 
@@ -30,6 +39,7 @@ extension SwiftDataStore: PlateLifecycleStore {
             throw PlateLifecycleError.mealNotLogged(mealID)
         }
         meal.loggedAt = loggedAt
+        reconcileTypeaheadRecency(for: meal.items.compactMap(\.foodItem))
         try commit()
         return meal.asData()
     }
