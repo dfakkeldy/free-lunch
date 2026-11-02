@@ -32,6 +32,9 @@ jobs:
           sudo xcode-select -s "$XCODE_PATH/Contents/Developer"
           xcodebuild -version
 
+      - name: Validate committed app icons
+        run: Scripts/test-app-icon.sh
+
       - name: Run Swift package tests
         working-directory: FreeLunchKit
         run: swift test
