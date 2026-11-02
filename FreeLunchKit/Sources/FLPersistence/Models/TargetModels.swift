@@ -3,7 +3,7 @@
 //
 // A TargetPeriod pins its FormulaVersion forever; recalculation never
 // rewrites a period. FormulaOrigin's payload is stored as `originKind` +
-// `builtinID`. The store API for these lands with the energy binding.
+// `builtinID`. The store API for these is Store/TargetStore.swift.
 import FLCore
 import Foundation
 import SwiftData
@@ -19,16 +19,29 @@ extension FreeLunchSchemaV1 {
         /// FormulaOrigin case name; `builtinID` carries `.builtin`'s value.
         var originKind: String
         var builtinID: String?
+        /// The version's parameters (ρ today) as JSON. Spec §4 gives every
+        /// version its own params and spec §3 pins the whole version, so they
+        /// live on the row; nil only on rows written before this column.
+        var paramsJSON: Data?
         @Relationship(deleteRule: .deny, inverse: \TargetPeriod.formulaVersion)
         var periods: [TargetPeriod] = []
 
-        init(id: UUID, name: String, definition: String, createdAt: Date, originKind: String, builtinID: String?) {
+        init(
+            id: UUID,
+            name: String,
+            definition: String,
+            createdAt: Date,
+            originKind: String,
+            builtinID: String?,
+            paramsJSON: Data? = nil
+        ) {
             self.id = id
             self.name = name
             self.definition = definition
             self.createdAt = createdAt
             self.originKind = originKind
             self.builtinID = builtinID
+            self.paramsJSON = paramsJSON
         }
     }
 
