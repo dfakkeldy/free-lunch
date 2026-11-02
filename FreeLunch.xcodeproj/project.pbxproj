@@ -1,0 +1,563 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0ED40B5BB91805B845B6EBC0 /* FLPlate in Frameworks */ = {isa = PBXBuildFile; productRef = 6E6CD4D9014D7BDC5A0203B4 /* FLPlate */; };
+		1B005DF89A7F63E4C35A8614 /* KitLinkage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E5485E8BD770E8120F8AE4B /* KitLinkage.swift */; };
+		1B7A16B6A38A4BDB73D36E03 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8F32FDE49239668EFDAD49E1 /* Assets.xcassets */; };
+		22070383C9F9C5C3E3F45B4C /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 716C70C329BEC33FB63A5D3B /* ContentView.swift */; };
+		2E9D01A1A072F30196B84FF8 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5A1137B70D27FAA6C64443FB /* Assets.xcassets */; };
+		3BE214ADBE29FAC13C2F3A9C /* FreeLunchPhoneApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D35D635BB6BE1AE80806C716 /* FreeLunchPhoneApp.swift */; };
+		5AC90D8DA1A9487C9C65D8E4 /* FLEnergyCore in Frameworks */ = {isa = PBXBuildFile; productRef = 6A9369D5ADF9AE106721C644 /* FLEnergyCore */; };
+		5B7CC30E5F25DCDB99A066F9 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 689D919131D523E880B8E445 /* ContentView.swift */; };
+		6D57620880ECAB84EE6D848E /* FreeLunchWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 01F26E05BC6A8B267FCE56C2 /* FreeLunchWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		7FD24E5906A54284CEF27A8E /* FreeLunchWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E52848070211DD91FA758AF /* FreeLunchWatchApp.swift */; };
+		87A3FB4F29E9BC5DC35AE680 /* FLPersistence in Frameworks */ = {isa = PBXBuildFile; productRef = FFAE29BC79E52AD4331E72AD /* FLPersistence */; };
+		9572B84A5C346A60867EC1B4 /* KitLinkage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C041CB01BB43E0E99EFE893 /* KitLinkage.swift */; };
+		A8AAE874B620CF59B1599464 /* FLCore in Frameworks */ = {isa = PBXBuildFile; productRef = F453E143DCE7DEED09C3F7A2 /* FLCore */; };
+		D3641B887398276FB6A4A7A0 /* FLCore in Frameworks */ = {isa = PBXBuildFile; productRef = 18F78B8488A1AF117DE2B3D7 /* FLCore */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		AC27173E324235F90A87E1CD /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 92BF46DF11561DB6B13C00C0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E2CE04A669CD0B842AD34300;
+			remoteInfo = FreeLunchWatch;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		FFE5600071ED07B271D97BEC /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				6D57620880ECAB84EE6D848E /* FreeLunchWatch.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		01F26E05BC6A8B267FCE56C2 /* FreeLunchWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FreeLunchWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		0C041CB01BB43E0E99EFE893 /* KitLinkage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KitLinkage.swift; sourceTree = "<group>"; };
+		2616E4EA510F3F97025F0B79 /* FreeLunchKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = FreeLunchKit; path = FreeLunchKit; sourceTree = SOURCE_ROOT; };
+		5A1137B70D27FAA6C64443FB /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		60602B5D300A93E7C7F82F36 /* FreeLunchPhone.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FreeLunchPhone.entitlements; sourceTree = "<group>"; };
+		689D919131D523E880B8E445 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		716C70C329BEC33FB63A5D3B /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		72AC05E5476BAEC79764F5C8 /* FreeLunchPhone.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = FreeLunchPhone.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		7CCC1F752898DFC0A21F7E16 /* FreeLunchWatch.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FreeLunchWatch.entitlements; sourceTree = "<group>"; };
+		8E52848070211DD91FA758AF /* FreeLunchWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeLunchWatchApp.swift; sourceTree = "<group>"; };
+		8F32FDE49239668EFDAD49E1 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		9E5485E8BD770E8120F8AE4B /* KitLinkage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KitLinkage.swift; sourceTree = "<group>"; };
+		D35D635BB6BE1AE80806C716 /* FreeLunchPhoneApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeLunchPhoneApp.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		814A6D798446872EF6676765 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A8AAE874B620CF59B1599464 /* FLCore in Frameworks */,
+				5AC90D8DA1A9487C9C65D8E4 /* FLEnergyCore in Frameworks */,
+				0ED40B5BB91805B845B6EBC0 /* FLPlate in Frameworks */,
+				87A3FB4F29E9BC5DC35AE680 /* FLPersistence in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BA9EBBC7D284EF2A91B17CD6 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D3641B887398276FB6A4A7A0 /* FLCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		153079382BC838A9C4436F27 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				2616E4EA510F3F97025F0B79 /* FreeLunchKit */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+		7DEBF099D86E64BC9F6EAD25 /* FreeLunchPhone */ = {
+			isa = PBXGroup;
+			children = (
+				5A1137B70D27FAA6C64443FB /* Assets.xcassets */,
+				689D919131D523E880B8E445 /* ContentView.swift */,
+				60602B5D300A93E7C7F82F36 /* FreeLunchPhone.entitlements */,
+				D35D635BB6BE1AE80806C716 /* FreeLunchPhoneApp.swift */,
+				0C041CB01BB43E0E99EFE893 /* KitLinkage.swift */,
+			);
+			path = FreeLunchPhone;
+			sourceTree = "<group>";
+		};
+		83260FF9F91345DD01FDB094 = {
+			isa = PBXGroup;
+			children = (
+				7DEBF099D86E64BC9F6EAD25 /* FreeLunchPhone */,
+				B93CC62DC3137822B9431A05 /* FreeLunchWatch */,
+				153079382BC838A9C4436F27 /* Packages */,
+				F5FE3C3CB02E4613ADD306E5 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		B93CC62DC3137822B9431A05 /* FreeLunchWatch */ = {
+			isa = PBXGroup;
+			children = (
+				8F32FDE49239668EFDAD49E1 /* Assets.xcassets */,
+				716C70C329BEC33FB63A5D3B /* ContentView.swift */,
+				7CCC1F752898DFC0A21F7E16 /* FreeLunchWatch.entitlements */,
+				8E52848070211DD91FA758AF /* FreeLunchWatchApp.swift */,
+				9E5485E8BD770E8120F8AE4B /* KitLinkage.swift */,
+			);
+			path = FreeLunchWatch;
+			sourceTree = "<group>";
+		};
+		F5FE3C3CB02E4613ADD306E5 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				72AC05E5476BAEC79764F5C8 /* FreeLunchPhone.app */,
+				01F26E05BC6A8B267FCE56C2 /* FreeLunchWatch.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		750139F8A71F5E0DCA3FAB88 /* FreeLunchPhone */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C7B9E90E2F18F819D24CD2AB /* Build configuration list for PBXNativeTarget "FreeLunchPhone" */;
+			buildPhases = (
+				E0732442B243C37C6D27271F /* Sources */,
+				DF03633B6DF760745B9B5E02 /* Resources */,
+				814A6D798446872EF6676765 /* Frameworks */,
+				FFE5600071ED07B271D97BEC /* Embed Watch Content */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				D56941E272DED4F29980B4E8 /* PBXTargetDependency */,
+			);
+			name = FreeLunchPhone;
+			packageProductDependencies = (
+				F453E143DCE7DEED09C3F7A2 /* FLCore */,
+				6A9369D5ADF9AE106721C644 /* FLEnergyCore */,
+				6E6CD4D9014D7BDC5A0203B4 /* FLPlate */,
+				FFAE29BC79E52AD4331E72AD /* FLPersistence */,
+			);
+			productName = FreeLunchPhone;
+			productReference = 72AC05E5476BAEC79764F5C8 /* FreeLunchPhone.app */;
+			productType = "com.apple.product-type.application";
+		};
+		E2CE04A669CD0B842AD34300 /* FreeLunchWatch */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 78149B7F9EA797B6BCA3BD84 /* Build configuration list for PBXNativeTarget "FreeLunchWatch" */;
+			buildPhases = (
+				654C180ED55DD568331FA792 /* Sources */,
+				53663560091062C6A77BFCBB /* Resources */,
+				BA9EBBC7D284EF2A91B17CD6 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = FreeLunchWatch;
+			packageProductDependencies = (
+				18F78B8488A1AF117DE2B3D7 /* FLCore */,
+			);
+			productName = FreeLunchWatch;
+			productReference = 01F26E05BC6A8B267FCE56C2 /* FreeLunchWatch.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		92BF46DF11561DB6B13C00C0 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					750139F8A71F5E0DCA3FAB88 = {
+						DevelopmentTeam = 8AXNA5B37R;
+						ProvisioningStyle = Automatic;
+					};
+					E2CE04A669CD0B842AD34300 = {
+						DevelopmentTeam = 8AXNA5B37R;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 7C3CCB4E73326A8423E2CC6A /* Build configuration list for PBXProject "FreeLunch" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 83260FF9F91345DD01FDB094;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				6268CDBF6B5DBCD58109543A /* XCLocalSwiftPackageReference "FreeLunchKit" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = F5FE3C3CB02E4613ADD306E5 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				750139F8A71F5E0DCA3FAB88 /* FreeLunchPhone */,
+				E2CE04A669CD0B842AD34300 /* FreeLunchWatch */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		53663560091062C6A77BFCBB /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1B7A16B6A38A4BDB73D36E03 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DF03633B6DF760745B9B5E02 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2E9D01A1A072F30196B84FF8 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		654C180ED55DD568331FA792 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				22070383C9F9C5C3E3F45B4C /* ContentView.swift in Sources */,
+				7FD24E5906A54284CEF27A8E /* FreeLunchWatchApp.swift in Sources */,
+				1B005DF89A7F63E4C35A8614 /* KitLinkage.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E0732442B243C37C6D27271F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5B7CC30E5F25DCDB99A066F9 /* ContentView.swift in Sources */,
+				3BE214ADBE29FAC13C2F3A9C /* FreeLunchPhoneApp.swift in Sources */,
+				9572B84A5C346A60867EC1B4 /* KitLinkage.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		D56941E272DED4F29980B4E8 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E2CE04A669CD0B842AD34300 /* FreeLunchWatch */;
+			targetProxy = AC27173E324235F90A87E1CD /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		3418D68CE0FC7C4C2D25F4AA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 8AXNA5B37R;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				WATCHOS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = Release;
+		};
+		9AE60975E2D60B247545439A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = FreeLunchWatch/FreeLunchWatch.entitlements;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Free Lunch";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Free Lunch reads body weight and energy burned to compute energy balance.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Free Lunch saves logged food energy and nutrients to Health.";
+				INFOPLIST_KEY_WKApplication = YES;
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.freelunch.nutrition;
+				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = NO;
+				PRODUCT_BUNDLE_IDENTIFIER = com.freelunch.nutrition.watchkitapp;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 4;
+			};
+			name = Release;
+		};
+		AC749EBFE43158CA8C0567E4 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = FreeLunchWatch/FreeLunchWatch.entitlements;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Free Lunch";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Free Lunch reads body weight and energy burned to compute energy balance.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Free Lunch saves logged food energy and nutrients to Health.";
+				INFOPLIST_KEY_WKApplication = YES;
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.freelunch.nutrition;
+				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = NO;
+				PRODUCT_BUNDLE_IDENTIFIER = com.freelunch.nutrition.watchkitapp;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 4;
+			};
+			name = Debug;
+		};
+		C1C2AB47574F49AD2D0F2552 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = FreeLunchPhone/FreeLunchPhone.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Free Lunch";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Free Lunch reads body weight and energy burned to compute energy balance.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Free Lunch saves logged food energy and nutrients to Health.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.freelunch.nutrition;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		C84B9943C787559157125DCC /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 8AXNA5B37R;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				WATCHOS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = Debug;
+		};
+		D0B52AF129E84733371AF19C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = FreeLunchPhone/FreeLunchPhone.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Free Lunch";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Free Lunch reads body weight and energy burned to compute energy balance.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Free Lunch saves logged food energy and nutrients to Health.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.freelunch.nutrition;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		78149B7F9EA797B6BCA3BD84 /* Build configuration list for PBXNativeTarget "FreeLunchWatch" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AC749EBFE43158CA8C0567E4 /* Debug */,
+				9AE60975E2D60B247545439A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		7C3CCB4E73326A8423E2CC6A /* Build configuration list for PBXProject "FreeLunch" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C84B9943C787559157125DCC /* Debug */,
+				3418D68CE0FC7C4C2D25F4AA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		C7B9E90E2F18F819D24CD2AB /* Build configuration list for PBXNativeTarget "FreeLunchPhone" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C1C2AB47574F49AD2D0F2552 /* Debug */,
+				D0B52AF129E84733371AF19C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		6268CDBF6B5DBCD58109543A /* XCLocalSwiftPackageReference "FreeLunchKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = FreeLunchKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		18F78B8488A1AF117DE2B3D7 /* FLCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FLCore;
+		};
+		6A9369D5ADF9AE106721C644 /* FLEnergyCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FLEnergyCore;
+		};
+		6E6CD4D9014D7BDC5A0203B4 /* FLPlate */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FLPlate;
+		};
+		F453E143DCE7DEED09C3F7A2 /* FLCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FLCore;
+		};
+		FFAE29BC79E52AD4331E72AD /* FLPersistence */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FLPersistence;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 92BF46DF11561DB6B13C00C0 /* Project object */;
+}
