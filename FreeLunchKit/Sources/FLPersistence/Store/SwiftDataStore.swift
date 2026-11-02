@@ -621,14 +621,14 @@ public final class SwiftDataStore: FreeLunchStore {
         }
     }
 
-    private func model<T: PersistentModel & IdentifiedByUUID>(_ type: T.Type, id: UUID) throws -> T? {
+    func model<T: PersistentModel & IdentifiedByUUID>(_ type: T.Type, id: UUID) throws -> T? {
         var descriptor = FetchDescriptor<T>(predicate: T.predicate(id: id))
         descriptor.fetchLimit = 1
         return try context.fetch(descriptor).first
     }
 
     /// A stored meal that may be edited: native, not imported.
-    private func editableMeal(id: UUID) throws -> MealEntry {
+    func editableMeal(id: UUID) throws -> MealEntry {
         guard let meal = try model(MealEntry.self, id: id) else {
             throw FreeLunchStoreError.notFound(id)
         }
