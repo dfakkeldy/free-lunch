@@ -25,6 +25,12 @@ public struct RenderedHistoryDay: Sendable, Hashable, Codable {
     public let displayedKcalPerDay: Double?
     /// As-of date of ``displayedKcalPerDay``.
     public let displayedAsOf: Date?
+    /// Name of the formula version that produced ``displayedKcalPerDay``, as
+    /// recorded on its as-of day: equal to ``formulaName`` while tracking,
+    /// the earlier day's version while paused (spec §3 "Versioning": a
+    /// carried estimate is never recomputed under a later version). Nil
+    /// when no estimate is displayed.
+    public let displayedFormulaName: String?
 
     public enum RenderedState: String, Sendable, Hashable, Codable {
         case tracking
@@ -42,12 +48,13 @@ public struct RenderedHistoryDay: Sendable, Hashable, Codable {
         }
     }
 
-    init(formulaName: String, snapshot: ExpenditureSnapshot) {
+    init(formulaName: String, snapshot: ExpenditureSnapshot, displayedFormulaName: String?) {
         day = snapshot.day
         self.formulaName = formulaName
         state = RenderedState(snapshot.state)
         displayedKcalPerDay = snapshot.displayed?.kcalPerDay
         displayedAsOf = snapshot.displayed?.asOf
+        self.displayedFormulaName = snapshot.displayed == nil ? nil : displayedFormulaName
     }
 }
 
@@ -70,13 +77,18 @@ public struct RenderedTargetPeriod: Sendable, Hashable, Codable {
 /// "Versioning"). Pure functions over plain values; results are derived and
 /// recomputable, never canonical.
 ///
-/// Each rendering folds snapshots from its first day, so the first day of a
-/// rendering shows no carried-over estimate if it is paused.
+/// The live series does not depend on the range asked for: it is folded
+/// from the earliest stored data, so a paused first day still shows the last
+/// valid estimate (spec §3 "Paused behavior"). Period renderings and the
+/// re-run action fold from their own first day instead.
 public enum EnergyHistory {
     /// Renders `period` with the formula version it pinned, for every day
     /// from its start through its end, or through `lastDay` while it is open
     /// (and never past `lastDay`). Activating another version changes
     /// nothing here.
+    ///
+    /// The fold starts at the period's first day, so that day shows no
+    /// carried-over estimate if it is paused.
     public static func render(
         period: AdoptedTargetPeriod,
         through lastDay: Date,
@@ -106,8 +118,22 @@ public enum EnergyHistory {
         }
     }
 
-    /// The live daily series: each day evaluated with the version active on
-    /// it, so a new activation affects its day and later days only.
+    /// The live daily series from `first` through `last`: each day evaluated
+    /// with the version active on it, so a new activation affects its day
+    /// and later days only.
+    ///
+    /// The result does not depend on `first` beyond where it starts: the
+    /// series is folded from the earliest day with any intake or weight data
+    /// (or from `first`, if that is earlier), each day under its scheduled
+    /// version, and the days before `first` are then dropped. A paused
+    /// `first` day therefore shows the last valid estimate, its as-of date
+    /// and the version that produced it (spec §3 "Paused behavior"). No day
+    /// on or before the earliest data can track (its window holds no data),
+    /// so starting there loses nothing.
+    ///
+    /// `intake` must hold every stored intake day through `last`, not only
+    /// those in the requested range; a carried estimate can be older than
+    /// any window inside it.
     public static func live(
         schedule: FormulaActivationSchedule,
         from first: Date,
@@ -116,17 +142,31 @@ public enum EnergyHistory {
         weights: TrendSeries,
         calendar: Calendar
     ) -> RenderedHistory {
+        let firstDay = calendar.startOfDay(for: first)
+        let start = seedDay(intake: intake, weights: weights, calendar: calendar).map { min($0, firstDay) } ?? firstDay
         let days = days(
-            from: first, through: last, calendar: calendar,
+            from: start, through: last, calendar: calendar,
             formula: { schedule.formula(on: $0, calendar: calendar) },
             intake: intake, weights: weights
         )
-        return RenderedHistory(label: .asRecorded, days: days)
+        return RenderedHistory(label: .asRecorded, days: days.filter { $0.day >= firstDay })
+    }
+
+    /// Start of the earliest calendar day with any intake record or weigh-in,
+    /// or nil when there is neither.
+    static func seedDay(intake: [DayIntake], weights: TrendSeries, calendar: Calendar) -> Date? {
+        let earliestIntake = intake.lazy.map(\.day).min()
+        // Points are kept in time order.
+        let earliestWeight = weights.points.first?.measuredAt
+        return [earliestIntake, earliestWeight].compactMap { $0 }.min().map { calendar.startOfDay(for: $0) }
     }
 
     /// The explicit "re-run history with vN" action: every day from `first`
     /// through `last` recomputed with `formula`, labeled reconstructed. It
     /// returns a separate rendering and changes no period or schedule.
+    ///
+    /// The fold starts at `first`, so that day shows no carried-over
+    /// estimate if it is paused.
     public static func rerun(
         with formula: EnergyFormulaVersion,
         from first: Date,
@@ -154,6 +194,8 @@ public enum EnergyHistory {
         let lastDay = calendar.startOfDay(for: last)
         var current = calendar.startOfDay(for: first)
         var previous: ExpenditureSnapshot?
+        // The version that produced `previous?.displayed`, as recorded.
+        var displayedName: String?
         var rendered: [RenderedHistoryDay] = []
         while current <= lastDay {
             let version = formula(current)
@@ -162,7 +204,10 @@ public enum EnergyHistory {
                 parameters: version.parameters
             )
             let snapshot = ExpenditureSnapshot.advance(from: previous, day: current, evaluation: evaluation)
-            rendered.append(RenderedHistoryDay(formulaName: version.name, snapshot: snapshot))
+            if evaluation.estimate != nil { displayedName = version.name }
+            rendered.append(RenderedHistoryDay(
+                formulaName: version.name, snapshot: snapshot, displayedFormulaName: displayedName
+            ))
             previous = snapshot
             guard let next = calendar.date(byAdding: .day, value: 1, to: current) else { break }
             current = calendar.startOfDay(for: next)

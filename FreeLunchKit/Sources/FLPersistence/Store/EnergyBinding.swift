@@ -43,9 +43,39 @@ extension MealStore {
               let endRaw = calendar.date(byAdding: .day, value: 1, to: lastDay)
         else { return [] }
         let end = calendar.startOfDay(for: endRaw)
+        return try dayIntakes(
+            in: DateInterval(start: start, end: end), calendar: calendar, markedDidNotTrack: markedDidNotTrack
+        )
+    }
 
+    /// Every stored intake day through `last` (inclusive), oldest first:
+    /// ``dayIntakes(from:through:calendar:markedDidNotTrack:)`` with no lower
+    /// bound. The live series is seeded from the earliest stored data, so
+    /// it reads all of it (spec §3 "Paused behavior").
+    public func dayIntakes(
+        through last: Date,
+        calendar: Calendar,
+        markedDidNotTrack: Set<Date> = []
+    ) throws -> [DayIntake] {
+        let lastDay = calendar.startOfDay(for: last)
+        guard let endRaw = calendar.date(byAdding: .day, value: 1, to: lastDay) else { return [] }
+        let end = calendar.startOfDay(for: endRaw)
+        return try dayIntakes(
+            in: DateInterval(start: .distantPast, end: end), calendar: calendar, markedDidNotTrack: markedDidNotTrack
+        )
+    }
+
+    /// Intake for the calendar days in `interval`, whose bounds are day
+    /// starts (or `.distantPast` for no lower bound).
+    private func dayIntakes(
+        in interval: DateInterval,
+        calendar: Calendar,
+        markedDidNotTrack: Set<Date>
+    ) throws -> [DayIntake] {
+        let start = interval.start
+        let end = interval.end
         var days: [Date: IntakeDayTally] = [:]
-        for meal in try loggedMeals(in: DateInterval(start: start, end: end)) {
+        for meal in try loggedMeals(in: interval) {
             guard let loggedAt = meal.loggedAt else { continue }
             let key = calendar.startOfDay(for: loggedAt)
             var day = days[key] ?? IntakeDayTally()
@@ -97,7 +127,10 @@ public struct EnergyRecomputeKey: Sendable, Hashable {
     public let day: Date
     /// Start of the first rendered day of the live series.
     public let historyFrom: Date
-    /// Stored intake from `historyFrom` minus the window through today.
+    /// Every stored intake day through today. The live series is seeded from
+    /// the earliest stored data whatever `historyFrom` is, so a paused today
+    /// still carries its last valid estimate (spec §3 "Paused behavior"),
+    /// and an edit to any stored day changes the key.
     public let intake: [DayIntake]
     public let weights: TrendSeries
     public let schedule: FormulaActivationSchedule
@@ -147,7 +180,9 @@ public enum EnergyRecomputeReason: String, Sendable, Hashable, CaseIterable {
 public struct LiveEnergy: Sendable, Hashable {
     public let key: EnergyRecomputeKey
     /// The live series from `historyFrom` through today, each day under the
-    /// version active on it (forward-only activation, spec §3).
+    /// version active on it (forward-only activation, spec §3). Seeded from
+    /// the earliest stored data, so its first day carries the last valid
+    /// estimate when it is paused.
     public let history: RenderedHistory
     /// Today's evaluation under today's active version.
     public let evaluation: ExpenditureEvaluation
@@ -177,11 +212,7 @@ public enum EnergyBinding {
     ) throws -> EnergyRecomputeKey {
         let day = calendar.startOfDay(for: today)
         let from = calendar.startOfDay(for: historyFrom)
-        let intakeStart = calendar.date(byAdding: .day, value: -ExpenditureFormulaV1.windowDays, to: from)
-            .map { calendar.startOfDay(for: $0) } ?? from
-        let intake = try store.dayIntakes(
-            from: intakeStart, through: day, calendar: calendar, markedDidNotTrack: markedDidNotTrack
-        )
+        let intake = try store.dayIntakes(through: day, calendar: calendar, markedDidNotTrack: markedDidNotTrack)
         return EnergyRecomputeKey(
             day: day, historyFrom: from, intake: intake, weights: weights, schedule: schedule, rateGoal: rateGoal
         )
