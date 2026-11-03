@@ -3,6 +3,45 @@
 Newest first. Product decisions live in the private planning repo; this log
 records the code-level choices made here.
 
+## 2026-11-03 — Food catalog seed (spec §11)
+
+- **Seed shape.** About 300 generic whole foods ship as
+  `FLCore/Resources/food-seed.json`, declared as a resource of the existing
+  `FLCore` target (no new target). Values are per 100 g, copied from USDA
+  FoodData Central SR Legacy records (public domain); each entry carries its
+  `fdcId` and data type. `kcal` is FDC nutrient 208 as published. Servings
+  are household measures chosen for logging convenience, not FDC columns.
+- **Value precision.** The FDC API's search and abridged responses round
+  values to three significant figures (31.0 where the full record says
+  31.02), and the key used for this first pass had a small hourly and daily
+  quota. The ten pinned staples and ten random entries were checked against
+  the full FDC records and now carry the full-precision numbers; the rest hold
+  the three-figure values (largest difference seen across the 20 checked
+  entries: 0.05 g per 100 g). `Scripts/refresh-food-seed.py` compares every
+  entry with its full FDC record and, with `--write`, tightens the values.
+  Run it with a normal api.data.gov key before the first release that
+  contains the seed; after that, corrections ship as new keys.
+- **Identity, not bookkeeping.** A seeded food's id is a name-based (v5) UUID
+  of its stable `key`, so the loader's only rule is "insert the entries whose
+  id is not in the store". That makes a load idempotent, makes a version bump
+  insert only the new keys, and means an archived or forked seeded row (which
+  keeps its id) is never resurrected. No schema change and no stored seed
+  version. The namespace UUID and every shipped `key` are permanent.
+- **Additive bumps.** A bump adds entries stamped with the new `since`
+  version. A shipped entry is never edited in place: a device that holds the
+  row would keep the old value anyway, so a correction ships as a new key.
+- **Fork on edit.** `FoodCatalogStore.editFood` is the edit path for catalog
+  foods. A `.seeded` food is never changed: a real edit creates a `.custom`
+  food with the edits and archives the original in one save. The fork copies
+  `useCount`, `lastUsedAt` and `lastPortionGrams` so a food the user already
+  relies on keeps its typeahead rank. An edit that changes nothing creates no
+  fork. `updateFood` is unchanged; edits from the Foods screen should call
+  `editFood`.
+- **Ranking.** Seeded foods are ordinary never-used foods to `Typeahead`, so
+  they sit in the prefix and substring tiers below anything with history, and
+  the empty query never shows them. The §2 typeahead fixture is extended with
+  the whole seed rather than given special cases.
+
 ## 2026-11-02 — Unit factors, target warnings and the weight gate
 
 Recorded from the first build's pull requests, which flagged these for the

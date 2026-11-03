@@ -53,6 +53,29 @@ public protocol FoodCatalogStore: AnyObject {
     func updateFood(_ food: FoodItemData) throws
     func archiveFood(id: UUID, at date: Date) throws
 
+    /// Inserts every food in one save: all or nothing. Throws `duplicateID`
+    /// if an id exists already or repeats within `foods`, before inserting
+    /// anything. Stored as given, like `createFood` (catalog seeding).
+    func createFoods(_ foods: [FoodItemData]) throws
+
+    /// Saves a user's edit of a catalog food (spec §11: editing a seeded
+    /// food forks it). `edited` carries the food's `id` and the new name,
+    /// brand, per-100 g nutrition, isLiquid and servings.
+    ///
+    /// - A `.seeded` food is never changed. If the edit differs from the
+    ///   stored values, a new `.custom` food with id `forkID` is created
+    ///   from the edit, carrying over the original's typeahead fields so it
+    ///   keeps its rank, and the original is archived at `date`, all in one
+    ///   save. An edit that changes nothing creates no fork. A seed reload
+    ///   never brings the archived original back, because it keeps its id.
+    /// - Any other food is updated in place, as `updateFood` does.
+    ///
+    /// Returns the food the edit left in effect: the fork, or the updated or
+    /// unchanged food. Throws `notFound`, or `duplicateID` if a fork is
+    /// needed and `forkID` exists.
+    @discardableResult
+    func editFood(_ edited: FoodItemData, forkID: UUID, at date: Date) throws -> FoodItemData
+
     /// Throws `duplicateID` for the recipe or a component id,
     /// `missingFood` for a component's food, `invalidYield` for a yield of
     /// zero.
@@ -60,6 +83,14 @@ public protocol FoodCatalogStore: AnyObject {
     func recipe(id: UUID) throws -> RecipeData?
     /// Sorted by name, then id.
     func recipes() throws -> [RecipeData]
+}
+
+extension FoodCatalogStore {
+    /// `editFood(_:forkID:at:)` with a fresh random fork id.
+    @discardableResult
+    public func editFood(_ edited: FoodItemData, at date: Date) throws -> FoodItemData {
+        try editFood(edited, forkID: UUID(), at: date)
+    }
 }
 
 /// Plates (spec §1 MealEntry, MealItem, PhotoAttachment, AIEstimationRecord).

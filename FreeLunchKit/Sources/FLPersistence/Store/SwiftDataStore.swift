@@ -50,30 +50,42 @@ public final class SwiftDataStore: FreeLunchStore {
     // MARK: - Foods
 
     public func createFood(_ food: FoodItemData) throws {
-        guard try model(FoodItem.self, id: food.id) == nil else {
-            throw FreeLunchStoreError.duplicateID(food.id)
+        try createFoods([food])
+    }
+
+    public func createFoods(_ foods: [FoodItemData]) throws {
+        // Validate everything before inserting anything.
+        var seen: Set<UUID> = []
+        let encoded = try foods.map { food -> (FoodItemData, Data) in
+            guard seen.insert(food.id).inserted, try model(FoodItem.self, id: food.id) == nil else {
+                throw FreeLunchStoreError.duplicateID(food.id)
+            }
+            return (food, try ServingsCoding.encode(food.servings))
         }
-        let servings = try ServingsCoding.encode(food.servings)
-        context.insert(
-            FoodItem(
-                id: food.id,
-                name: food.name,
-                brand: food.brand,
-                kcal: food.per100g.kcal,
-                proteinG: food.per100g.proteinG,
-                carbsG: food.per100g.carbsG,
-                fatG: food.per100g.fatG,
-                fiberG: food.per100g.fiberG,
-                isLiquid: food.isLiquid,
-                servingsJSON: servings,
-                origin: food.origin,
-                useCount: food.useCount,
-                lastUsedAt: food.lastUsedAt,
-                lastPortionGrams: food.lastPortionGrams,
-                archivedAt: food.archivedAt
-            )
-        )
+        for (food, servings) in encoded {
+            context.insert(makeFoodItem(food, servingsJSON: servings))
+        }
         try commit()
+    }
+
+    private func makeFoodItem(_ food: FoodItemData, servingsJSON: Data) -> FoodItem {
+        FoodItem(
+            id: food.id,
+            name: food.name,
+            brand: food.brand,
+            kcal: food.per100g.kcal,
+            proteinG: food.per100g.proteinG,
+            carbsG: food.per100g.carbsG,
+            fatG: food.per100g.fatG,
+            fiberG: food.per100g.fiberG,
+            isLiquid: food.isLiquid,
+            servingsJSON: servingsJSON,
+            origin: food.origin,
+            useCount: food.useCount,
+            lastUsedAt: food.lastUsedAt,
+            lastPortionGrams: food.lastPortionGrams,
+            archivedAt: food.archivedAt
+        )
     }
 
     public func food(id: UUID) throws -> FoodItemData? {
@@ -114,6 +126,46 @@ public final class SwiftDataStore: FreeLunchStore {
         }
         stored.archivedAt = date
         try commit()
+    }
+
+    public func editFood(_ edited: FoodItemData, forkID: UUID, at date: Date) throws -> FoodItemData {
+        guard let stored = try model(FoodItem.self, id: edited.id) else {
+            throw FreeLunchStoreError.notFound(edited.id)
+        }
+        guard stored.origin == .seeded else {
+            try updateFood(edited)
+            return try stored.asData()
+        }
+
+        let original = try stored.asData()
+        let unchanged = original.name == edited.name
+            && original.brand == edited.brand
+            && original.per100g == edited.per100g
+            && original.isLiquid == edited.isLiquid
+            && original.servings == edited.servings
+        if unchanged { return original }
+
+        guard try model(FoodItem.self, id: forkID) == nil else {
+            throw FreeLunchStoreError.duplicateID(forkID)
+        }
+        let fork = FoodItemData(
+            id: forkID,
+            name: edited.name,
+            brand: edited.brand,
+            per100g: edited.per100g,
+            isLiquid: edited.isLiquid,
+            servings: edited.servings,
+            origin: .custom,
+            useCount: original.useCount,
+            lastUsedAt: original.lastUsedAt,
+            lastPortion: original.lastPortionGrams.map { Grams($0) },
+            archivedAt: nil
+        )
+        context.insert(makeFoodItem(fork, servingsJSON: try ServingsCoding.encode(fork.servings)))
+        // An original archived earlier keeps its earlier date.
+        if stored.archivedAt == nil { stored.archivedAt = date }
+        try commit()
+        return fork
     }
 
     // MARK: - Recipes
