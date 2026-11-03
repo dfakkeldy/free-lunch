@@ -534,6 +534,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "Free Lunch";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Free Lunch reads body weight and energy burned to compute energy balance.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Free Lunch saves logged food energy and nutrients to Health.";
 				INFOPLIST_KEY_WKApplication = YES;
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.freelunch.nutrition;
 				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = NO;
@@ -553,6 +554,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "Free Lunch";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Free Lunch reads body weight and energy burned to compute energy balance.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Free Lunch saves logged food energy and nutrients to Health.";
 				INFOPLIST_KEY_WKApplication = YES;
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.freelunch.nutrition;
 				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = NO;
