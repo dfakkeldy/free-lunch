@@ -24,7 +24,10 @@ struct TimelineStubView: View {
                     }
                 }
                 .navigationDestination(item: openPlateBinding) { mealID in
+                    // The plate keeps the whole screen, as before the tabs:
+                    // no tab bar over its list.
                     PlateScreen(model: model, mealID: mealID)
+                        .toolbarVisibility(.hidden, for: .tabBar)
                 }
         }
         .sheet(isPresented: postLogBinding) {
