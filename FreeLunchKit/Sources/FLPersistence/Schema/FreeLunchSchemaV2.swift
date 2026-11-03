@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // FreeLunchSchemaV2 — the v1 schema plus DietarySampleMirror (the spec §1
-// amendment declared in §10). V1 shipped to TestFlight, so its models are
-// frozen and this version is an append: FreeLunchMigrationPlan migrates V1
-// stores to it.
+// amendment declared in §10) and the energy-settings pair, EnergySettingsRecord
+// and DidNotTrackMark (the persisted home of what spec §3 and §6 settings the
+// engine reads). V1 shipped to TestFlight, so its models are frozen and this
+// version is an append: FreeLunchMigrationPlan migrates V1 stores to it.
 //
 // A versioned schema is a complete snapshot, not a diff, so every model is
 // declared again here as a nested copy. Nothing in this file names a V1
@@ -43,7 +44,9 @@ enum FreeLunchSchemaV2: VersionedSchema {
             TargetPeriod.self,
             RecentFoodSnapshot.self,
             WatchOutboxRecord.self,
-            DietarySampleMirror.self
+            DietarySampleMirror.self,
+            EnergySettingsRecord.self,
+            DidNotTrackMark.self
         ]
     }
 }
@@ -676,6 +679,54 @@ extension FreeLunchSchemaV2 {
             self.fatG = fatG
             self.sourceBundleID = sourceBundleID
             self.deletedInHK = deletedInHK
+        }
+    }
+}
+
+// Energy settings (spec §3 and §6): what EnergyBinding.recompute reads.
+
+extension FreeLunchSchemaV2 {
+    /// The single row of energy-engine settings. Absent until the first
+    /// write; a store with no row reads as the spec defaults.
+    @Model
+    final class EnergySettingsRecord {
+        /// Constant, so a second row can never exist.
+        @Attribute(.unique) var singletonKey: String
+        /// Trend smoothing α per day, 0.05–0.25 (spec §3).
+        var trendAlpha: Double
+        /// Signed kg/week, loss negative (spec §3 "Calculated target").
+        var rateGoalKgPerWeek: Double
+        /// AdoptionMode raw value, stored raw so the persistent schema does
+        /// not depend on enum coding.
+        var adoptionModeRaw: String
+        /// The formula activation schedule as JSON (spec §3 "Versioning").
+        /// Nil means the builtin formula has always been active.
+        var activationScheduleJSON: Data?
+
+        init(
+            singletonKey: String,
+            trendAlpha: Double,
+            rateGoalKgPerWeek: Double,
+            adoptionModeRaw: String,
+            activationScheduleJSON: Data?
+        ) {
+            self.singletonKey = singletonKey
+            self.trendAlpha = trendAlpha
+            self.rateGoalKgPerWeek = rateGoalKgPerWeek
+            self.adoptionModeRaw = adoptionModeRaw
+            self.activationScheduleJSON = activationScheduleJSON
+        }
+    }
+
+    /// A calendar day the user marked "didn't track" (spec §3 "Day
+    /// completeness"). One row per day.
+    @Model
+    final class DidNotTrackMark {
+        /// Start of the marked calendar day, in the calendar it was marked in.
+        @Attribute(.unique) var day: Date
+
+        init(day: Date) {
+            self.day = day
         }
     }
 }
