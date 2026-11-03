@@ -25,7 +25,7 @@ struct SnapshotInvarianceTests {
     /// on day 1; and an unlogged draft on day 0 that must not count.
     func populate(_ store: some FreeLunchStore) throws {
         try store.createFood(FoodItemData(id: granola, name: "Granola", per100g: nutrition(250, 10, 30, 10, fiber: 5), origin: .custom))
-        try store.createFood(FoodItemData(id: apple, name: "Apple", per100g: nutrition(52, 0.25, 14, 0.5), origin: .seeded))
+        try store.createFood(FoodItemData(id: apple, name: "Apple", per100g: nutrition(52, 0.25, 14, 0.5), origin: .custom))
 
         try store.createMeal(MealEntryData(id: breakfast, createdAt: at(hour: 0), source: .phone))
         // 150 g granola: 250·150/100 = 375 kcal, 15 P, 45 C, 15 F, 7.5 fiber.

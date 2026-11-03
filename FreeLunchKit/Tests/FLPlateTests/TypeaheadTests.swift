@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+import FLCore
 import FLPlate
 import Foundation
 import Testing
@@ -179,6 +180,77 @@ struct TypeaheadTests {
         #expect(Typeahead.score(useCount: 0, lastUsedAt: ago(0), now: now) == 0)
         #expect(Typeahead.score(useCount: 3, lastUsedAt: nil, now: now) == 0)
         #expect(abs(Typeahead.score(useCount: 3, lastUsedAt: now.addingTimeInterval(5 * 86_400), now: now) - 3) < 1e-9)
+    }
+
+    // Spec §11 acceptance #2: the §2 ordering fixture extended with the
+    // seed. Every bundled seeded food joins the fixture's foods as a
+    // never-used row, so each existing expectation is re-checked with a
+    // catalog of a few hundred extra foods in it.
+    @Test("seeded foods rank below frequently used foods from day one")
+    func seededFoodsRankBelowFrequent() throws {
+        let seed = try FoodCatalogSeed.loadBundled()
+        let seeded = seed.foods.map { TypeaheadFood(id: $0.id, name: $0.name) }
+        let seededIDs = Set(seeded.map(\.id))
+        #expect(seeded.count > 250)
+
+        // The empty query shows tier (1) alone, so a never-used seed is invisible.
+        #expect(Typeahead.rows(query: "", foods: foods + seeded, now: now)
+            == Typeahead.rows(query: "", foods: foods, now: now))
+
+        for query in ["app", "al", "an", "pea"] {
+            let baseline = Typeahead.rows(query: query, foods: foods, now: now)
+            let baselineFrequent = baseline.filter(isFrequentRow)
+            let rows = Typeahead.rows(query: query, foods: foods + seeded, now: now)
+
+            // The fixture's frequent foods keep their exact order, at the top.
+            #expect(Array(rows.prefix(baselineFrequent.count)) == baselineFrequent)
+            // A seeded food only ever appears after the frequent rows, in the
+            // prefix tier when its name starts with the query, else in the
+            // substring tier.
+            for (index, row) in rows.enumerated() {
+                if case let .food(food, tier, _) = row, seededIDs.contains(food.id) {
+                    #expect(index >= baselineFrequent.count)
+                    let folded = food.name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+                    #expect(tier == (folded.hasPrefix(query) ? .prefix : .substring))
+                }
+            }
+            // The tail actions are still last and still unconditional.
+            #expect(Array(rows.suffix(2)) == [.tail(.newFood), .tail(.adHocEntry)])
+        }
+
+        // With the seed present, "app" still lists the fixture's frequent
+        // foods first and then reaches seeded matches.
+        let appRows = Typeahead.rows(query: "app", foods: foods + seeded, now: now)
+        #expect(rowLabels(appRows).prefix(2) == ["Apple|frequent", "Green apple|frequent"])
+        #expect(appRows.contains { row in
+            if case let .food(food, _, _) = row { return seededIDs.contains(food.id) }
+            return false
+        })
+    }
+
+    @Test("a seeded food the user has logged ranks by the same blend as any other food")
+    func usedSeededFoodIsJustAFood() throws {
+        let seed = try FoodCatalogSeed.loadBundled()
+        let seeded = try #require(seed.foods.first)
+        let used = TypeaheadFood(id: seeded.id, name: seeded.name, useCount: 2, lastUsedAt: ago(0), lastPortionGrams: 100)
+        let others = seed.foods.dropFirst().map { TypeaheadFood(id: $0.id, name: $0.name) }
+
+        let rows = Typeahead.rows(query: "", foods: foods + others + [used], now: now)
+
+        // Score 2 (two uses, today): above Egg (1.25), below Apple (3) and Oatmeal (10).
+        let order = rows.compactMap { row -> String? in
+            if case let .food(food, _, _) = row { return food.name }
+            return nil
+        }
+        let usedIndex = try #require(order.firstIndex(of: seeded.name))
+        #expect(order.firstIndex(of: "Oatmeal")! < usedIndex)   // score 10
+        #expect(order.firstIndex(of: "Apple")! < usedIndex)     // score 3
+        #expect(usedIndex < order.firstIndex(of: "Egg")!)       // score 1.25
+    }
+
+    private func isFrequentRow(_ row: TypeaheadRow) -> Bool {
+        if case let .food(_, tier, _) = row { return tier == .frequent }
+        return false
     }
 
     private func food(

@@ -37,4 +37,8 @@ public enum FreeLunchStoreError: Error, Equatable, Sendable {
     case invalidItem(UUID)
     /// A recipe yield must be greater than zero.
     case invalidYield(UUID)
+    /// A `.seeded` catalog food is never edited in place (spec §11); edits
+    /// go through `editFood`, which forks it, and no row becomes `.seeded`
+    /// after it is created.
+    case seededFoodImmutable(UUID)
 }
