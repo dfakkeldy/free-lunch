@@ -47,6 +47,7 @@ struct SchemaV1ToV2MigrationTests {
         let store = try SwiftDataStore(kind: kind, at: .file(url))
         #expect(try migratedCounts(store) == expectedCounts)
         #expect(try store.rowCount(DietarySampleMirror.self) == 0)
+        #expect(try store.rowCount(AppliedOutboxRecord.self) == 0)
         try expectSpotValues(store)
     }
 
@@ -76,6 +77,8 @@ struct SchemaV1ToV2MigrationTests {
             #expect(try store.corrections(targetKind: nil).map(\.id) == [uid(80_081)])
             #expect(try store.targetLedger().periods.map(\.id) == [uid(80_101)])
             try store.upsertDietarySample(dietary)
+            #expect(try !store.hasAppliedOutboxItem(id: uid(80_110)))
+            try store.recordAppliedOutboxItem(id: uid(80_110), appliedAt: at(day: 6))
         }
 
         // A second open is V2 → V2: no stage runs and both lanes survive.
@@ -84,6 +87,7 @@ struct SchemaV1ToV2MigrationTests {
         #expect(
             try reopened.dietarySamples(from: at(day: 5), through: at(day: 5), calendar: utcCalendar) == [dietary]
         )
+        #expect(try reopened.hasAppliedOutboxItem(id: uid(80_110)))
     }
 
     // MARK: - Fixture

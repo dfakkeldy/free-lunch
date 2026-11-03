@@ -36,12 +36,39 @@ final class RecordingApplier: WatchOutboxApplying {
     }
 }
 
-/// The real phone store as the applier: shots insert by id through the
-/// public store API, and a row that already exists is left alone, so
-/// duplicate deliveries are checked against SwiftData rows rather than a
-/// dictionary.
+/// The phone's applied-id ledger without SwiftData, counting records and
+/// able to refuse the next ones, so the "applied but not recorded" path can
+/// be driven. The SwiftData ledger is exercised wherever a test passes the
+/// real phone store.
 @MainActor
-final class ShotStoreApplier: WatchOutboxApplying {
+final class InMemoryLedger: AppliedOutboxLedger {
+    private(set) var applied: [UUID: Date] = [:]
+    /// Ids whose next record fails, once each.
+    var failNextRecord: Set<UUID> = []
+
+    struct RecordRefused: Error, Equatable {
+        let id: UUID
+    }
+
+    func hasAppliedOutboxItem(id: UUID) throws -> Bool {
+        applied[id] != nil
+    }
+
+    func recordAppliedOutboxItem(id: UUID, appliedAt: Date) throws {
+        if failNextRecord.remove(id) != nil {
+            throw RecordRefused(id: id)
+        }
+        if applied[id] == nil { applied[id] = appliedAt }
+    }
+}
+
+/// The real phone store as the applier: shots and meals insert by id
+/// through the public store API, and a row that already exists is left
+/// alone, so duplicate deliveries are checked against SwiftData rows rather
+/// than a dictionary. A meal's payload is opaque at this layer, so the
+/// stand-in builds a watch quick-log meal from the item's subject and time.
+@MainActor
+final class PhoneStoreApplier: WatchOutboxApplying {
     let store: SwiftDataStore
 
     init(store: SwiftDataStore) {
@@ -49,10 +76,18 @@ final class ShotStoreApplier: WatchOutboxApplying {
     }
 
     func apply(_ item: WatchOutboxItem) throws {
-        guard item.kind == .shot else { return }
-        let shot = try JSONDecoder().decode(ShotEventData.self, from: item.payload)
-        if try store.shot(id: shot.id) == nil {
-            try store.createShot(shot)
+        switch item.kind {
+        case .shot:
+            let shot = try JSONDecoder().decode(ShotEventData.self, from: item.payload)
+            if try store.shot(id: shot.id) == nil {
+                try store.createShot(shot)
+            }
+        case .meal:
+            if try store.meal(id: item.subjectID) == nil {
+                try store.createMeal(MealEntryData(id: item.subjectID, createdAt: item.queuedAt, source: .watchQuickLog))
+            }
+        case .hungerEdit:
+            break
         }
     }
 }
@@ -91,13 +126,20 @@ final class InstrumentedWatchStore: WatchWorkingSetStore {
 final class SyncHarness {
     let link = InMemoryWatchSyncLink()
     let applier: any WatchOutboxApplying
+    let ledger: any AppliedOutboxLedger
     private(set) var watchStore: SwiftDataStore
     private(set) var watch: WatchSyncCoordinator
     private(set) var phone: PhoneSyncCoordinator?
 
-    init(watchStore: SwiftDataStore, applier: any WatchOutboxApplying = RecordingApplier(), phoneRunning: Bool = true) {
+    init(
+        watchStore: SwiftDataStore,
+        applier: any WatchOutboxApplying = RecordingApplier(),
+        ledger: any AppliedOutboxLedger = InMemoryLedger(),
+        phoneRunning: Bool = true
+    ) {
         self.watchStore = watchStore
         self.applier = applier
+        self.ledger = ledger
         watch = WatchSyncCoordinator(store: watchStore, transport: link.watch)
         if phoneRunning { launchPhone() }
     }
@@ -107,9 +149,10 @@ final class SyncHarness {
     }
 
     var recorder: RecordingApplier { applier as! RecordingApplier }
+    var memoryLedger: InMemoryLedger { ledger as! InMemoryLedger }
 
     func launchPhone() {
-        phone = PhoneSyncCoordinator(transport: link.phone, applier: applier)
+        phone = PhoneSyncCoordinator(transport: link.phone, applier: applier, ledger: ledger, now: { at(day: 30) })
     }
 
     func relaunchWatch(store: SwiftDataStore? = nil) {
@@ -257,7 +300,7 @@ struct WatchSyncSpineTests {
         #expect(try h.watchStore.outbox().isEmpty)
     }
 
-    @Test("lost acks leave records queued; the retry is a no-op apply, acked and pruned")
+    @Test("lost acks leave records queued; the retry is acked from the ledger without a second apply, and pruned")
     func droppedAcks() throws {
         let h = try SyncHarness()
         let ids = try enqueueThree(h.watchStore)
@@ -270,8 +313,9 @@ struct WatchSyncSpineTests {
 
         try h.watch.activate()
         h.link.pump()
-        #expect(h.recorder.applyCalls == 6)
+        #expect(h.recorder.applyCalls == 3)
         #expect(h.recorder.rows.count == 3)
+        #expect(Set(h.memoryLedger.applied.keys) == Set(ids))
         #expect(try h.watchStore.outbox().isEmpty)
     }
 
@@ -285,7 +329,8 @@ struct WatchSyncSpineTests {
         h.link.duplicateNext(to: .watch, count: 6)
         h.link.pump()
 
-        #expect(h.recorder.applyCalls == 6)
+        // The phone-bound copies are acked from the ledger, not applied.
+        #expect(h.recorder.applyCalls == 3)
         #expect(Set(h.recorder.rows.keys) == Set(ids))
         #expect(try h.watchStore.outbox().isEmpty)
         #expect(h.link.receiveErrors.isEmpty)
@@ -302,6 +347,8 @@ struct WatchSyncSpineTests {
         #expect(h.link.receiveErrors.count == 1)
         #expect(h.link.receiveErrors.first as? RecordingApplier.Refused == RecordingApplier.Refused(id: ids[1]))
         #expect(try h.watchStore.outbox().map(\.id) == [ids[1]])
+        // A refused apply is not recorded, so the retry reaches the applier.
+        #expect(try !h.memoryLedger.hasAppliedOutboxItem(id: ids[1]))
 
         try h.watch.activate()
         h.link.pump()
@@ -309,12 +356,37 @@ struct WatchSyncSpineTests {
         #expect(try h.watchStore.outbox().isEmpty)
     }
 
+    @Test("a failed ledger record after a successful apply withholds the ack; the replay is harmless")
+    func failedLedgerRecord() throws {
+        let h = try SyncHarness()
+        let ids = try enqueueThree(h.watchStore)
+        h.memoryLedger.failNextRecord = [ids[0]]
+
+        try h.watch.sendOutbox()
+        h.link.pump()
+        #expect(h.link.receiveErrors.first as? InMemoryLedger.RecordRefused == InMemoryLedger.RecordRefused(id: ids[0]))
+        // Applied, but neither recorded nor acked: the watch keeps it.
+        #expect(h.recorder.rows[ids[0]] != nil)
+        #expect(try !h.memoryLedger.hasAppliedOutboxItem(id: ids[0]))
+        #expect(try h.watchStore.outbox().map(\.id) == [ids[0]])
+
+        // The resend reaches the applier again (insert-if-absent: one row),
+        // is recorded this time, and is acked.
+        try h.watch.activate()
+        h.link.pump()
+        #expect(h.recorder.applyCalls == 4)
+        #expect(h.recorder.rows.count == 3)
+        #expect(h.memoryLedger.applied == Dictionary(uniqueKeysWithValues: ids.map { ($0, at(day: 30)) }))
+        #expect(try h.watchStore.outbox().isEmpty)
+        #expect(h.link.receiveErrors.count == 1)
+    }
+
     @Test("a failing digest apply on activation still resends the outbox, then reports the error")
     func activationDigestFailure() throws {
         let link = InMemoryWatchSyncLink()
         let store = InstrumentedWatchStore(base: try SwiftDataStore.watch(at: .inMemory))
         let applier = RecordingApplier()
-        let phone = PhoneSyncCoordinator(transport: link.phone, applier: applier)
+        let phone = PhoneSyncCoordinator(transport: link.phone, applier: applier, ledger: InMemoryLedger())
         try phone.publish(WatchDigestData(generatedAt: at(hour: 1), recentFoods: (1...3).map(food)))
         link.deliverDigest(to: .watch)
 
@@ -338,7 +410,7 @@ struct WatchSyncSpineTests {
     func staleResendAfterPhoneEdit() throws {
         let phoneStore = try makeInMemoryStore()
         try phoneStore.createMedicationProfile(MedicationProfileData(id: medicationID, known: .tirzepatide))
-        let h = SyncHarness(watchStore: try SwiftDataStore.watch(at: .inMemory), applier: ShotStoreApplier(store: phoneStore))
+        let h = SyncHarness(watchStore: try SwiftDataStore.watch(at: .inMemory), applier: PhoneStoreApplier(store: phoneStore), ledger: phoneStore)
         let original = shot(400)
         try h.watchStore.enqueueShot(original, queuedAt: at(hour: 1))
         try h.watch.sendOutbox()
@@ -360,6 +432,41 @@ struct WatchSyncSpineTests {
         #expect(h.link.receiveErrors.isEmpty)
     }
 
+    @Test("a stale resend after a phone-side delete leaves the record deleted and still prunes")
+    func staleResendAfterPhoneDelete() throws {
+        let phoneStore = try makeInMemoryStore()
+        try phoneStore.createMedicationProfile(MedicationProfileData(id: medicationID, known: .tirzepatide))
+        let h = SyncHarness(watchStore: try SwiftDataStore.watch(at: .inMemory), applier: PhoneStoreApplier(store: phoneStore), ledger: phoneStore)
+        try h.watchStore.enqueueShot(shot(500), queuedAt: at(hour: 1))
+        try h.watchStore.enqueueMeal(id: uid(501), payload: Data([0xF0, 0x0D]), queuedAt: at(hour: 2))
+        try h.watch.sendOutbox()
+
+        // The phone applies both; their acks wait for a watch app that is
+        // not running. Meanwhile the user deletes both on the phone.
+        h.link.deliverNext(to: .phone)
+        h.link.deliverNext(to: .phone)
+        #expect(try phoneStore.shots().map(\.id) == [uid(500)])
+        #expect(try phoneStore.meal(id: uid(501)) != nil)
+        try phoneStore.deleteShot(id: uid(500))
+        try phoneStore.deleteMeal(id: uid(501))
+
+        // The watch relaunches and resends before it reads the pending acks.
+        h.relaunchWatch()
+        try h.watch.activate()
+        #expect(h.link.queuedCount(to: .phone) == 2)
+        h.link.pump()
+
+        // The deletes stand, and the stale copies were still acked.
+        #expect(try phoneStore.shots().isEmpty)
+        #expect(try phoneStore.meal(id: uid(501)) == nil)
+        #expect(try phoneStore.meals().isEmpty)
+        #expect(try phoneStore.hasAppliedOutboxItem(id: uid(500)))
+        #expect(try phoneStore.hasAppliedOutboxItem(id: uid(501)))
+        #expect(try phoneStore.rowCount(AppliedOutboxRecord.self) == 2)
+        #expect(try h.watchStore.outbox().isEmpty)
+        #expect(h.link.receiveErrors.isEmpty)
+    }
+
     @Test("killed midway: rebuilt sync objects over the same stores converge with no duplicates and no losses")
     func killedMidway() throws {
         let url = try temporaryStoreURL()
@@ -369,7 +476,7 @@ struct WatchSyncSpineTests {
         let shots = (200..<206).map(shot)
         let nextDose = WatchNextDoseData(medicationID: medicationID, medicationName: "Tirzepatide", doseMg: 2.5, nextDoseAt: at(day: 7))
 
-        let h = SyncHarness(watchStore: try SwiftDataStore.watch(at: .file(url)), applier: ShotStoreApplier(store: phoneStore))
+        let h = SyncHarness(watchStore: try SwiftDataStore.watch(at: .file(url)), applier: PhoneStoreApplier(store: phoneStore), ledger: phoneStore)
         for (offset, shot) in shots.enumerated() {
             try h.watchStore.enqueueShot(shot, queuedAt: at(hour: Double(offset)))
         }

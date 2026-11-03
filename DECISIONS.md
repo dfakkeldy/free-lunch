@@ -5,24 +5,37 @@ records the code-level choices made here.
 
 ## 2026-11-03 — Watch sync spine
 
-The Burly sync pattern, ported into `FreeLunchKit` without new schema.
+The Burly sync pattern, ported into `FreeLunchKit`. Its one schema change
+is the phone's applied-outbox ledger, appended to the unshipped V2.
 
 - **Acks are their own message.** Burly carries acks inside the digest
   and keeps a retained ack set on the phone. Free Lunch sends an ack per
   applied outbox record on the ordered channel instead, and acks every
-  delivery, duplicates included. The sync layer keeps no ledger, so a
-  retransmission is handed to the phone's applier again and acked again.
-  The watch prunes only on an ack.
-- **First copy wins on the phone.** Retransmissions are routine: a
-  relaunched watch resends its outbox on activation before it reads an ack
-  still waiting for it. So the applier inserts a shot or meal only when no
-  row with its id exists and otherwise does nothing, which keeps a phone
-  edit made in between. Two gaps are left to the phone-side applier, and
-  closing either needs stored state the current schema does not have: a
-  row deleted on the phone in that window comes back from a late copy
-  (needs a tombstone or applied-id set), and hunger edits must keep the
-  latest `editedAt` per meal, which MealEntry does not store. "No new
-  schema" holds for this port only because the applier is not written yet.
+  delivery, duplicates included. The watch prunes only on an ack.
+- **The phone keeps an applied-id ledger, checked first.** Retransmissions
+  are routine: a relaunched watch resends its outbox on activation before
+  it reads an ack still waiting for it, so a copy can land after the user
+  has deleted the record on the phone. Without stored state that copy
+  inserts the record again. So the phone store keeps one
+  `AppliedOutboxRecord` per applied `WatchOutboxItem.id` (unique id plus
+  the applied-at date), appended to `FreeLunchSchemaV2`; the watch store
+  refuses the ledger operations. `PhoneSyncCoordinator` owns the check,
+  behind the `AppliedOutboxLedger` protocol with the SwiftData phone store
+  as the production conformer: an id already in the ledger is acked
+  without reaching the applier; otherwise it applies, records the id, then
+  acks. If recording fails after a successful apply it throws and sends no
+  ack, so the watch resends. Closing this at the spine rather than in
+  each applier covers every outbox kind with one rule.
+- **Ledger rows are kept forever.** One small row per watch-logged record,
+  never pruned: a retransmission can arrive after any delay (a watch left
+  off for weeks still holds its unacked outbox), so no age is safe to
+  forget.
+- **First copy wins in the applier too.** A crash or failed record between
+  apply and record means the next copy reaches the applier again, so the
+  applier still inserts a shot or meal only when no row with its id exists
+  and otherwise does nothing, which keeps a phone edit made in between.
+  One gap is still left to the phone-side applier: hunger edits must keep
+  the latest `editedAt` per meal, which MealEntry does not store.
 - **Outbox records are immutable once queued.** An ack names an id, not a
   version, and a queued transfer cannot be recalled. A coalesced append
   or an undo after a record was sent has to be a new record with its own
@@ -31,9 +44,9 @@ The Burly sync pattern, ported into `FreeLunchKit` without new schema.
 - **Every activation resends the whole unacked outbox.** WatchConnectivity
   drops a transfer from its outstanding list once the other device has it,
   even if the app there has not consumed it, so a watch that comes forward
-  several times before the phone app runs queues several copies. First copy
-  wins makes them harmless; a resend backoff can come later if the transfer
-  budget calls for it.
+  several times before the phone app runs queues several copies. The
+  ledger acks the extra copies without applying them; a resend backoff can
+  come later if the transfer budget calls for it.
 - **The glance lives in the transport.** Next dose and today-remaining
   ride the latest-wins digest (WatchConnectivity's application context,
   which the system retains across relaunches), so the watch keeps them in

@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // FreeLunchSchemaV2 — the v1 schema plus DietarySampleMirror (the spec §1
-// amendment declared in §10). V1 shipped to TestFlight, so its models are
-// frozen and this version is an append: FreeLunchMigrationPlan migrates V1
-// stores to it.
+// amendment declared in §10) and AppliedOutboxRecord (the phone's ledger of
+// applied watch outbox items, spec §9). V1 shipped to TestFlight, so its
+// models are frozen and this version is an append: FreeLunchMigrationPlan
+// migrates V1 stores to it.
 //
 // A versioned schema is a complete snapshot, not a diff, so every model is
 // declared again here as a nested copy. Nothing in this file names a V1
@@ -43,7 +44,8 @@ enum FreeLunchSchemaV2: VersionedSchema {
             TargetPeriod.self,
             RecentFoodSnapshot.self,
             WatchOutboxRecord.self,
-            DietarySampleMirror.self
+            DietarySampleMirror.self,
+            AppliedOutboxRecord.self
         ]
     }
 }
@@ -676,6 +678,30 @@ extension FreeLunchSchemaV2 {
             self.fatG = fatG
             self.sourceBundleID = sourceBundleID
             self.deletedInHK = deletedInHK
+        }
+    }
+}
+
+// Sync spine (spec §9): AppliedOutboxRecord.
+
+extension FreeLunchSchemaV2 {
+    /// One watch outbox item the phone has applied, keyed by the item's
+    /// acknowledgement id (`WatchOutboxItem.id`). Phone store only.
+    ///
+    /// The ledger is what keeps a late retransmission from undoing a
+    /// phone-side delete: an id found here is acked without being applied
+    /// again. Rows are kept indefinitely, one small row per watch-logged
+    /// record, with no pruning: a retransmission can arrive after any delay
+    /// (a watch left off for weeks still holds its unacked outbox), so no
+    /// age is safe to forget.
+    @Model
+    final class AppliedOutboxRecord {
+        @Attribute(.unique) var id: UUID
+        var appliedAt: Date
+
+        init(id: UUID, appliedAt: Date) {
+            self.id = id
+            self.appliedAt = appliedAt
         }
     }
 }

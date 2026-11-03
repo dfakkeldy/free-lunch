@@ -2,15 +2,20 @@
 // The phone half of the sync spine (spec §9; the phone is the canonical
 // store and the sole HealthKit writer).
 //
-// - Outbox in: each record is handed to `WatchOutboxApplying`, then acked.
-//   Every delivery is acked, duplicates included, so the coordinator keeps
-//   no ledger of what it has seen: a retransmission is handed over again
-//   and acked again, and the watch prunes it. Retransmissions are routine,
-//   not a rare fault: a relaunched watch resends its outbox on activation,
-//   before it reads an ack that is still waiting, so a copy can arrive
-//   long after the phone applied the first one and the user edited it.
-// - A failed apply sends no ack. The record stays in the watch outbox and
-//   arrives again on the watch's next activation.
+// - Outbox in, ledger first: an item whose id is already in the
+//   `AppliedOutboxLedger` is acked without reaching the applier. Otherwise
+//   the item is applied, its id recorded, and only then acked.
+//   Retransmissions are routine, not a rare fault: a relaunched watch
+//   resends its outbox on activation, before it reads an ack that is still
+//   waiting, so a copy can arrive long after the phone applied the first
+//   one and the user edited or deleted it. The ledger is what keeps such a
+//   copy from bringing a deleted record back.
+// - Every delivery is acked once it is known to be applied, duplicates
+//   included, so the watch prunes it.
+// - A failed apply, or a failed record after a successful apply, sends no
+//   ack. The record stays in the watch outbox and arrives again on the
+//   watch's next activation. After a failed record that copy reaches the
+//   applier a second time, which its insert-if-absent rule makes harmless.
 // - Digest out: the caller builds the digest (FLPlate's
 //   `WatchDigestBuilder`) and publishes it here; the channel keeps only the
 //   latest.
@@ -19,19 +24,20 @@ import Foundation
 
 /// Applies one watch-created record to the phone's canonical store.
 ///
-/// The same item can arrive any number of times, before or after an earlier
-/// copy was applied and after the phone has since edited the row, so the
-/// first copy wins:
+/// `PhoneSyncCoordinator` consults its `AppliedOutboxLedger` first, so an
+/// item normally reaches the applier once. It can still arrive twice: when
+/// the apply succeeded but recording its id failed (or the app died in
+/// between), the watch resends it and the next copy is applied again. So
+/// the first copy wins here too:
 /// - A shot or meal inserts only when no row with `item.id` exists; when one
-///   does, the apply is a no-op. A later copy never overwrites a phone-side
-///   edit. (A row the phone has since deleted is not covered: with no record
-///   of the deletion, a late copy inserts it again. Closing that needs a
-///   stored tombstone or applied-id set, which this layer does not keep.)
+///   does, the apply is a no-op. A replay never overwrites a phone-side
+///   edit. A row the phone deleted after the id was recorded is covered by
+///   the ledger, not by this rule.
 /// - Hunger edits share their meal's `subjectID`, each with its own `id`.
 ///   An older edit can arrive after a newer one (a lost transfer resent
-///   later, or a duplicate), so the apply keeps the latest `editedAt` per
-///   meal. MealEntry stores no edit time for its hunger value, so the
-///   applier needs one stored alongside it to honour this.
+///   later), so the apply keeps the latest `editedAt` per meal. MealEntry
+///   stores no edit time for its hunger value, so the applier needs one
+///   stored alongside it to honour this.
 ///
 /// Throwing withholds the ack, so the watch retries.
 @MainActor
@@ -43,10 +49,21 @@ public protocol WatchOutboxApplying: AnyObject {
 public final class PhoneSyncCoordinator: WatchSyncReceiving {
     private let transport: any WatchSyncTransport
     private let applier: any WatchOutboxApplying
+    private let ledger: any AppliedOutboxLedger
+    private let now: () -> Date
 
-    public init(transport: any WatchSyncTransport, applier: any WatchOutboxApplying) {
+    /// `ledger` is the phone store in production. `now` stamps each ledger
+    /// row's `appliedAt`.
+    public init(
+        transport: any WatchSyncTransport,
+        applier: any WatchOutboxApplying,
+        ledger: any AppliedOutboxLedger,
+        now: @escaping () -> Date = Date.init
+    ) {
         self.transport = transport
         self.applier = applier
+        self.ledger = ledger
+        self.now = now
         transport.receiver = self
     }
 
@@ -58,7 +75,10 @@ public final class PhoneSyncCoordinator: WatchSyncReceiving {
     public func receive(_ message: WatchSyncMessage) throws {
         switch message {
         case let .outbox(item):
-            try applier.apply(item)
+            if try !ledger.hasAppliedOutboxItem(id: item.id) {
+                try applier.apply(item)
+                try ledger.recordAppliedOutboxItem(id: item.id, appliedAt: now())
+            }
             try transport.send(.ack([item.id]))
         case .ack:
             // Watch-bound; the phone has no outbox to prune.
