@@ -7,9 +7,14 @@ records the code-level choices made here.
 
 - `NextDose.nextDoseAt` adds the active profile's `intervalDays` as calendar
   days, in the injected `Calendar` and its time zone, to the latest shot's
-  `takenAt`. The latest shot is the one with the greatest `takenAt` (ties by
-  id), so an edited `takenAt` counts and a late shot moves every later
-  projection. Across a daylight-saving change the wall-clock time is kept.
+  `takenAt`. The latest shot is the one with the greatest `takenAt`, so an
+  edited `takenAt` counts and a late shot moves every later projection.
+  Shots sharing the latest `takenAt` project the same date, so which one is
+  picked does not matter. Across a daylight-saving change the wall-clock time
+  is kept.
+- A projection landing in the skipped spring-forward hour moves forward by
+  that hour (02:30 becomes 03:30), and one landing in the repeated fall-back
+  hour takes the first occurrence. Tests pin both.
 - Overdue begins strictly after the projected instant. At exactly
   `nextDoseAt` the dose is due today; one second later it is overdue with
   `daysLate` 0. Overdue does not wait for the end of the calendar day, so

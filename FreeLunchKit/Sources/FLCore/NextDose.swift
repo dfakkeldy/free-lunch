@@ -6,8 +6,11 @@
 //   `intervalDays` calendar days, in the injected calendar and its time zone.
 //   The wall-clock time is kept across a daylight-saving change, so seven
 //   calendar days over a DST change are 169 or 167 elapsed hours, not 168.
-// - The latest shot is the one with the greatest `takenAt` (ties broken by
-//   id), whatever the input order. A `takenAt` edited after logging counts at
+//   A projection into the skipped spring-forward hour moves forward by that
+//   hour, and one into the repeated fall-back hour takes the first occurrence.
+// - The latest shot is the one with the greatest `takenAt`, whatever the input
+//   order. Shots sharing the latest `takenAt` project the same date, so which
+//   one is picked does not matter. A `takenAt` edited after logging counts at
 //   its edited time, so a late shot moves every later projection.
 // - Only shots whose `medicationID` is the active profile's id count; shots of
 //   other profiles are ignored.
@@ -55,10 +58,7 @@ public enum NextDose {
 
         let latest = shots
             .filter { $0.medicationID == profile.id }
-            .max { lhs, rhs in
-                if lhs.takenAt != rhs.takenAt { return lhs.takenAt < rhs.takenAt }
-                return lhs.id.uuidString < rhs.id.uuidString
-            }
+            .max { $0.takenAt < $1.takenAt }
         guard let latest else { return nil }
 
         return calendar.date(byAdding: .day, value: profile.intervalDays, to: latest.takenAt)

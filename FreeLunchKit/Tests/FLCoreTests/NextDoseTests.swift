@@ -121,7 +121,7 @@ struct NextDoseTests {
         #expect(NextDose.nextDoseAt(shots: shots, activeProfile: p, calendar: cal) == at(2026, 1, 15))
     }
 
-    @Test("two shots at the same instant project one deterministic date")
+    @Test("two shots at the same instant project the same date in either order")
     func ties() {
         let p = profile(1)
         let a = shot(1, on: at(2026, 1, 5), of: p)
@@ -157,9 +157,25 @@ struct NextDoseTests {
         #expect(status(shots, p, at: at(2026, 1, 12)) == nil)
     }
 
+    @Test("shots of other profiles only means no projection")
+    func otherProfilesOnly() {
+        let p = profile(1)
+        let q = profile(2)
+        let shots = [shot(1, on: at(2026, 1, 5), of: q)]
+        #expect(NextDose.nextDoseAt(shots: shots, activeProfile: p, calendar: cal) == nil)
+        #expect(status(shots, p, at: at(2026, 1, 12)) == nil)
+    }
+
     @Test("a zero interval has no projection")
     func zeroInterval() {
         let p = profile(1, intervalDays: 0)
+        let shots = [shot(1, on: at(2026, 1, 5), of: p)]
+        #expect(NextDose.nextDoseAt(shots: shots, activeProfile: p, calendar: cal) == nil)
+    }
+
+    @Test("a negative interval has no projection")
+    func negativeInterval() {
+        let p = profile(1, intervalDays: -7)
         let shots = [shot(1, on: at(2026, 1, 5), of: p)]
         #expect(NextDose.nextDoseAt(shots: shots, activeProfile: p, calendar: cal) == nil)
     }
@@ -252,6 +268,30 @@ struct NextDoseTests {
         #expect(next == at(2026, 3, 11))
         // Seven days less the skipped hour.
         #expect(next.timeIntervalSince(shotAt) == 167 * 3600)
+    }
+
+    @Test("a projection into the skipped spring-forward hour resolves to the next valid instant")
+    func dstSpringForwardSkippedHour() throws {
+        let p = profile(1)
+        let shotAt = at(2026, 3, 1, 2, 30)
+        let shots = [shot(1, on: shotAt, of: p)]
+        let next = try #require(NextDose.nextDoseAt(shots: shots, activeProfile: p, calendar: cal))
+
+        // 02:30 does not exist that day; the calendar moves it forward by the skipped hour.
+        #expect(next == utcAt(2026, 3, 8, 6, 30))
+        #expect(next.timeIntervalSince(shotAt) == 168 * 3600)
+    }
+
+    @Test("a projection into the repeated fall-back hour takes its first occurrence")
+    func dstFallBackRepeatedHour() throws {
+        let p = profile(1)
+        let shotAt = at(2026, 10, 25, 1, 30)
+        let shots = [shot(1, on: shotAt, of: p)]
+        let next = try #require(NextDose.nextDoseAt(shots: shots, activeProfile: p, calendar: cal))
+
+        // 01:30 daylight time, the first of the two 01:30s.
+        #expect(next == utcAt(2026, 11, 1, 4, 30))
+        #expect(next.timeIntervalSince(shotAt) == 168 * 3600)
     }
 
     @Test("the injected calendar's time zone drives the arithmetic")
