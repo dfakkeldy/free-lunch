@@ -22,6 +22,10 @@ public final class HealthKitStoreAdapter: HealthStoreAdapter {
         HKHealthStore.isHealthDataAvailable()
     }
 
+    public var ownSourceBundleID: String {
+        HKSource.default().bundleIdentifier
+    }
+
     public func authorizationStatus(for type: HealthDataType) -> HealthAuthorizationStatus {
         guard isHealthDataAvailable else { return .unavailable }
         switch store.authorizationStatus(for: Self.sampleType(type)) {
@@ -62,9 +66,11 @@ public final class HealthKitStoreAdapter: HealthStoreAdapter {
             limit: limit
         )
         let result = try await mapped(.bodyMass) { try await descriptor.result(for: store) }
+        let added = result.addedSamples.compactMap(Self.weightSample)
         return HealthWeightChanges(
-            added: result.addedSamples.compactMap(Self.weightSample),
+            added: added,
             deleted: result.deletedObjects.map(\.uuid),
+            unreadable: result.addedSamples.count - added.count,
             anchor: try Self.archive(result.newAnchor)
         )
     }
@@ -83,23 +89,23 @@ public final class HealthKitStoreAdapter: HealthStoreAdapter {
             hkUUID: sample.uuid,
             measuredAt: sample.startDate,
             weight: weight,
-            sourceBundleID: HKSource.default().bundleIdentifier
+            sourceBundleID: ownSourceBundleID
         )
     }
 
     public func deleteWeight(hkUUID: UUID) async throws {
-        let ownSample = NSCompoundPredicate(andPredicateWithSubpredicates: [
-            HKQuery.predicateForObject(with: hkUUID),
-            HKQuery.predicateForObjects(from: HKSource.default())
-        ])
+        // By UUID alone, so "another source's" and "already gone" stay apart.
         let descriptor = HKSampleQueryDescriptor(
-            predicates: [.quantitySample(type: Self.bodyMass, predicate: ownSample)],
+            predicates: [.quantitySample(type: Self.bodyMass, predicate: HKQuery.predicateForObject(with: hkUUID))],
             sortDescriptors: [],
             limit: 1
         )
         let found = try await mapped(.bodyMass) { try await descriptor.result(for: store) }
         // Already gone from Apple Health: the deletion has happened.
         guard let sample = found.first else { return }
+        guard sample.sourceRevision.source.bundleIdentifier == ownSourceBundleID else {
+            throw FreeLunchStoreError.importedRecordImmutable(hkUUID)
+        }
         try await mapped(.bodyMass) { try await store.delete(sample) }
     }
 
@@ -159,6 +165,8 @@ public final class HealthKitStoreAdapter: HealthStoreAdapter {
                 throw HealthAccessError.authorizationNotDetermined(type)
             case .errorAuthorizationDenied:
                 throw HealthAccessError.authorizationDenied(type)
+            case .errorDatabaseInaccessible:
+                throw HealthAccessError.temporarilyUnavailable
             default:
                 throw error
             }

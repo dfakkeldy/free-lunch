@@ -20,27 +20,26 @@ public final class HealthWeightSync {
     public static let defaultPageLimit = 500
 
     /// The bundle identifier Apple Health records as the source of this
-    /// app's samples. Injected rather than read from `Bundle.main`, which is
-    /// the test runner on the package test host.
-    public let ownSourceBundleID: String
+    /// app's samples, as the adapter that writes them reports it.
+    public var ownSourceBundleID: String { health.ownSourceBundleID }
 
     let health: any HealthStoreAdapter
     let weights: any WeightStore
     let anchors: any HealthAnchorStore
     let pageLimit: Int
+    /// The pass in progress, which an overlapping `sync` joins.
+    private var running: Task<HealthSyncResult, any Error>?
 
     public init(
         health: any HealthStoreAdapter,
         weights: any WeightStore,
         anchors: any HealthAnchorStore,
-        ownSourceBundleID: String,
         pageLimit: Int = HealthWeightSync.defaultPageLimit
     ) {
         precondition(pageLimit > 0, "pageLimit must be positive")
         self.health = health
         self.weights = weights
         self.anchors = anchors
-        self.ownSourceBundleID = ownSourceBundleID
         self.pageLimit = pageLimit
     }
 
@@ -59,17 +58,23 @@ public final class HealthWeightSync {
     }
 
     /// Whether the re-request path would show the system sheet, or should
-    /// send the user to the Health app instead.
+    /// send the user to the Health app instead. `.unknown` on a device
+    /// without Health data, which has no Health app to send them to.
     public func accessRequestStatus() async throws -> HealthAuthorizationRequestStatus {
-        guard health.isHealthDataAvailable else { return .unnecessary }
+        guard health.isHealthDataAvailable else { return .unknown }
         return try await health.authorizationRequestStatus(toShare: Self.accessTypes, read: Self.accessTypes)
     }
 
     /// Asks for read and write access to the weight lane's types. Only an
     /// explicit user action calls this; `sync` never prompts.
+    ///
+    /// Afterwards the anchor is forgotten, so the next `sync` backfills from
+    /// the start: a pass that ran while reading was off stored an anchor
+    /// past samples HealthKit hid, and it never delivers those again.
     public func requestAccess() async throws {
         guard health.isHealthDataAvailable else { throw HealthAccessError.unavailable }
         try await health.requestAuthorization(toShare: Self.accessTypes, read: Self.accessTypes)
+        await forgetAnchor()
     }
 
     // MARK: Mirror sync
@@ -82,11 +87,42 @@ public final class HealthWeightSync {
     /// applied and the next pass replays the rest. Replays are harmless:
     /// upserts are idempotent and a deletion only sets `deletedInHK`.
     ///
-    /// When Apple Health is out of reach the result is `.degraded` and
-    /// nothing changes. A denied read can't be detected (HealthKit hides it)
-    /// and simply yields no samples.
+    /// When Apple Health is out of reach the result is `.degraded` and the
+    /// anchor stays at the last page applied. A denied read can't be
+    /// detected (HealthKit hides it) and yields no samples, yet the anchor
+    /// still moves past them; `requestAccess` and `resyncFromStart` are how
+    /// the hidden history comes in once reading is allowed.
+    ///
+    /// A call while a pass is running joins that pass and returns its
+    /// result, so two passes never interleave their pages.
     @discardableResult
     public func sync() async throws -> HealthSyncResult {
+        if let running { return try await running.value }
+        // The pass clears `running` itself, on the main actor, before anyone
+        // awaiting it resumes. It can't start before the assignment below:
+        // this method doesn't suspend until it awaits the pass.
+        let pass = Task { @MainActor in
+            defer { self.running = nil }
+            return try await self.runPass()
+        }
+        running = pass
+        return try await pass.value
+    }
+
+    /// Catches up from the stored anchor (so recent deletions still land),
+    /// then backfills the whole history again from the start. For the
+    /// Settings backfill row, after the user changes access in the Health
+    /// app. Re-delivered samples are idempotent upserts. The result is the
+    /// backfill's, or the catch-up's if that one degraded.
+    @discardableResult
+    public func resyncFromStart() async throws -> HealthSyncResult {
+        let catchUp = try await sync()
+        if case .degraded = catchUp { return catchUp }
+        await forgetAnchor()
+        return try await sync()
+    }
+
+    private func runPass() async throws -> HealthSyncResult {
         guard health.isHealthDataAvailable else { return .degraded(.unavailable) }
         var upserted = 0
         var markedDeleted = 0
@@ -98,6 +134,7 @@ public final class HealthWeightSync {
             } catch let error as HealthAccessError {
                 return .degraded(error)
             }
+            skipped += changes.unreadable
             for sample in changes.added {
                 do {
                     try weights.upsertWeightSample(sample)
@@ -189,8 +226,17 @@ public final class HealthWeightSync {
         }
     }
 
+    /// Waits out any running pass, which would otherwise store its own
+    /// anchor over the reset, then clears the anchor.
+    private func forgetAnchor() async {
+        while let running {
+            _ = try? await running.value
+        }
+        anchors.setAnchor(nil, for: .bodyMass)
+    }
+
     private func requireModifiable(_ hkUUID: UUID) throws {
-        guard let sample = try weights.weightSamples(includingDeletedInHK: false).first(where: { $0.hkUUID == hkUUID }) else {
+        guard let sample = try weights.weightSample(hkUUID: hkUUID), !sample.deletedInHK else {
             throw FreeLunchStoreError.notFound(hkUUID)
         }
         guard canModify(sample) else {

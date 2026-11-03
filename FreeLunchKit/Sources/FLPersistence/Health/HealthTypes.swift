@@ -74,16 +74,23 @@ public struct HealthWeightChanges: Sendable, Hashable {
     public let added: [WeightSampleData]
     /// HealthKit UUIDs of samples deleted since the anchor.
     public let deleted: [UUID]
+    /// Added samples the adapter couldn't express as a weight (a value no
+    /// `Kilograms` holds). They are left out of `added` but still count
+    /// toward the page, so a page of only these doesn't end the pass.
+    public let unreadable: Int
     /// The position after this page; pass it to the next query.
     public let anchor: HealthQueryAnchor
 
-    public init(added: [WeightSampleData], deleted: [UUID], anchor: HealthQueryAnchor) {
+    public init(added: [WeightSampleData], deleted: [UUID], unreadable: Int = 0, anchor: HealthQueryAnchor) {
+        precondition(unreadable >= 0, "unreadable must not be negative")
         self.added = added
         self.deleted = deleted
+        self.unreadable = unreadable
         self.anchor = anchor
     }
 
-    public var isEmpty: Bool { added.isEmpty && deleted.isEmpty }
+    /// True for the page after the last change: the pass is done.
+    public var isEmpty: Bool { added.isEmpty && deleted.isEmpty && unreadable == 0 }
 }
 
 /// The ways Apple Health can be out of reach. Each is a degraded state the
@@ -95,15 +102,20 @@ public enum HealthAccessError: Error, Equatable, Sendable {
     case authorizationNotDetermined(HealthDataType)
     /// The user denied access to this type.
     case authorizationDenied(HealthDataType)
+    /// Apple Health can't be read right now, typically because the device
+    /// is locked. A later pass, once it is unlocked, carries on.
+    case temporarilyUnavailable
 }
 
 /// What one sync pass did.
 public enum HealthSyncResult: Equatable, Sendable {
     /// The mirror is current with Apple Health as of the stored anchor.
     /// `skipped` counts samples the mirror can't hold (a weight that isn't
-    /// positive); they are left out and the sync carries on.
+    /// positive, or one the adapter couldn't read); they are left out and
+    /// the sync carries on.
     case synced(upserted: Int, markedDeleted: Int, skipped: Int)
-    /// Apple Health was out of reach. The mirror and the anchor are
-    /// unchanged; the next pass starts from the same place.
+    /// Apple Health was out of reach. Pages applied before that stay, and
+    /// the anchor sits at the last one fully applied, so the next pass
+    /// carries on from there.
     case degraded(HealthAccessError)
 }

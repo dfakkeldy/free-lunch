@@ -20,7 +20,15 @@ The first HealthKit code: body weight only, in `FLPersistence/Health/`.
   `UserDefaults`, one value per type) instead of into the versioned schema.
   Each page applies additions, then deletions, then stores its anchor, so a
   failure replays the page next time; replays are idempotent. Losing the
-  anchor only means a fresh backfill from the start of history.
+  anchor only means a fresh backfill from the start of history, though a
+  backfill re-delivers live samples only: a deletion made after the lost
+  anchor isn't replayed, so `resyncFromStart` catches up from the stored
+  anchor before it forgets it.
+- **The anchor outlives the store.** It sits in `UserDefaults` and the
+  mirror in SwiftData, so a store that is ever recreated (a reset or a
+  migration fallback; none exists yet) must forget the body-mass anchor
+  too, or the next sync resumes past every sample and the mirror stays
+  empty. Any such path calls `resyncFromStart` or clears the anchor.
 - **Write order.** A manual weigh-in is saved to HealthKit first; the mirror
   row is built from the sample HealthKit saved. Editing an own weigh-in
   saves the replacement before deleting the original, so a failure can
@@ -31,7 +39,23 @@ The first HealthKit code: body weight only, in `FLPersistence/Health/`.
   Settings shows write status per type plus whether a re-request would show
   the sheet. A denied read is an empty history; denied or missing access
   degrades (`HealthSyncResult.degraded`, `HealthAccessError`) and never
-  prompts from a sync.
+  prompts from a sync. A locked device (`temporarilyUnavailable`) degrades
+  the same way.
+- **A denied read still moves the anchor.** A pass that runs while reading
+  is off stores an anchor past samples HealthKit hid, and an anchored query
+  never delivers them again. So `requestAccess` forgets the anchor after
+  the sheet, and `resyncFromStart` is the entry point for the Settings
+  backfill row once the user turns reading on in the Health app (the sheet
+  never shows twice). The mock models HealthKit's hiding; the real
+  behaviour can only be checked on a device.
+- **"Own" has one definition.** The adapter reports the source bundle it
+  writes under (`HKSource.default()` in the real one); `canModify` compares
+  against that, and `deleteWeight` finds a sample by UUID alone and throws
+  `importedRecordImmutable` if another source holds it, rather than treating
+  it as already deleted.
+- **One pass at a time.** An overlapping `sync` joins the running pass, so
+  two passes can't interleave pages, regress the anchor or re-surface a
+  deleted row.
 - **Keeping current** is an incremental sync from the stored anchor, run by
   the caller. Observer queries and background delivery are not wired yet.
 - **Dietary types** join as new `HealthDataType` cases with their own

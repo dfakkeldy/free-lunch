@@ -17,6 +17,10 @@ public protocol HealthStoreAdapter: AnyObject {
     /// False on devices without Health data (some iPads, the Mac).
     var isHealthDataAvailable: Bool { get }
 
+    /// The bundle identifier Apple Health records as the source of the
+    /// samples `saveWeight` writes. The one definition of "this app's own".
+    var ownSourceBundleID: String { get }
+
     /// Write access to `type`. Read access is not observable.
     func authorizationStatus(for type: HealthDataType) -> HealthAuthorizationStatus
 
@@ -34,13 +38,16 @@ public protocol HealthStoreAdapter: AnyObject {
 
     /// Weight samples added and deleted after `anchor`, at most `limit` per
     /// page. A nil anchor starts at the beginning of the user's history.
+    /// A sample that can't be expressed as a weight is counted in
+    /// `unreadable` rather than dropped silently.
     func weightChanges(after anchor: HealthQueryAnchor?, limit: Int) async throws -> HealthWeightChanges
 
     /// Saves one body-mass sample and returns it as Apple Health stored it:
     /// its HealthKit UUID and this app as the source.
     func saveWeight(_ weight: Kilograms, at date: Date) async throws -> WeightSampleData
 
-    /// Deletes a sample this app wrote. HealthKit refuses to delete another
-    /// source's data.
+    /// Deletes a sample this app wrote. Returns quietly if the sample is
+    /// already gone; throws `FreeLunchStoreError.importedRecordImmutable` if
+    /// it exists under another source, which HealthKit won't delete.
     func deleteWeight(hkUUID: UUID) async throws
 }

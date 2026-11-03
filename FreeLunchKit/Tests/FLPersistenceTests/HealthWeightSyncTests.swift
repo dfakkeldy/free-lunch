@@ -141,6 +141,20 @@ struct HealthWeightMirrorSyncTests {
         #expect(try harness.mirror() == [good, later])
     }
 
+    @Test("samples the adapter can't read are counted as skipped, and a full page of them doesn't end the pass")
+    func unreadablePageDoesNotEndPass() async throws {
+        let harness = try HealthHarness(pageLimit: 2)
+        harness.health.seedUnreadable()
+        harness.health.seedUnreadable()
+        let later = healthWeight(1, day: 2, kilograms: 83.7)
+        harness.health.seed(later)
+
+        let result = try await harness.sync.sync()
+
+        #expect(result == .synced(upserted: 1, markedDeleted: 0, skipped: 2))
+        #expect(try harness.mirror() == [later])
+    }
+
     @Test("a mirror write failure leaves the anchor where it was, so the next pass replays")
     func failedWriteDoesNotAdvanceAnchor() async throws {
         let harness = try HealthHarness()
@@ -179,14 +193,64 @@ struct HealthWeightMirrorSyncTests {
         let resumed = HealthWeightSync(
             health: firstLaunch.health,
             weights: firstLaunch.weights,
-            anchors: relaunched,
-            ownSourceBundleID: ownBundleID
+            anchors: relaunched
         )
-        try await resumed.sync()
-        #expect(firstLaunch.health.queriedAnchors.last == MockHealthStore.anchor(2))
+        let queriedBefore = firstLaunch.health.queriedAnchors.count
+        // A restart from nil would upsert both samples again.
+        #expect(try await resumed.sync() == .synced(upserted: 0, markedDeleted: 0, skipped: 0))
+        #expect(Array(firstLaunch.health.queriedAnchors.dropFirst(queriedBefore)) == [MockHealthStore.anchor(2)])
 
         relaunched.setAnchor(nil, for: .bodyMass)
         #expect(UserDefaultsHealthAnchorStore(defaults: defaults).anchor(for: .bodyMass) == nil)
+    }
+}
+
+@MainActor
+@Suite("Overlapping sync calls")
+struct HealthWeightSyncOverlapTests {
+    /// Holds a query open until the test lets it return.
+    @MainActor
+    private final class Gate {
+        var waiting: CheckedContinuation<Void, Never>?
+
+        func hold() async {
+            await withCheckedContinuation { waiting = $0 }
+        }
+
+        func release() {
+            waiting?.resume()
+            waiting = nil
+        }
+    }
+
+    @Test("a second sync while one is running joins it instead of starting another pass")
+    func overlappingSyncsShareOnePass() async throws {
+        let harness = try HealthHarness()
+        let sample = healthWeight(1, day: 0, kilograms: 84.0)
+        harness.health.seed(sample)
+        let gate = Gate()
+        harness.health.beforeQueryReturns = { [health = harness.health] in
+            health.beforeQueryReturns = nil
+            await gate.hold()
+        }
+
+        let first = Task { try await harness.sync.sync() }
+        while gate.waiting == nil { await Task.yield() }
+        let second = Task { try await harness.sync.sync() }
+        for _ in 0..<20 { await Task.yield() }
+        // Meanwhile Apple Health deletes the sample.
+        harness.health.externalDelete(sample.hkUUID)
+        gate.release()
+        let results = try await (first.value, second.value)
+
+        // One pass: the held page, the deletion page, then the empty page.
+        #expect(harness.health.queriedAnchors == [
+            nil, MockHealthStore.anchor(1), MockHealthStore.anchor(2)
+        ])
+        #expect(results.0 == .synced(upserted: 1, markedDeleted: 1, skipped: 0))
+        #expect(results.1 == results.0)
+        #expect(try harness.mirror().map(\.deletedInHK) == [true])
+        #expect(harness.anchors.anchor(for: .bodyMass) == MockHealthStore.anchor(2))
     }
 }
 
@@ -275,6 +339,22 @@ struct HealthWeighInOwnershipTests {
         #expect(try harness.store.correctedWeightView().isEmpty)
     }
 
+    @Test("a delete Apple Health refuses as another source's leaves the mirror row live")
+    func deleteRefusedBySourceKeepsRow() async throws {
+        let harness = try HealthHarness()
+        // The mirror believes the row is this app's, but Apple Health holds
+        // it under another source.
+        let mislabelled = healthWeight(1, day: 0, kilograms: 84.0, source: ownBundleID)
+        try harness.store.upsertWeightSample(mislabelled)
+        harness.health.seed(healthWeight(1, day: 0, kilograms: 84.0))
+
+        await #expect(throws: FreeLunchStoreError.importedRecordImmutable(mislabelled.hkUUID)) {
+            try await harness.sync.deleteWeighIn(hkUUID: mislabelled.hkUUID)
+        }
+        #expect(!harness.log.entries.contains("mirror.markDeleted"))
+        #expect(try harness.mirror(includingDeleted: false) == [mislabelled])
+    }
+
     @Test("a sample that isn't in the mirror can't be edited or deleted")
     func unknownSampleRefused() async throws {
         let harness = try HealthHarness()
@@ -333,7 +413,9 @@ struct HealthAccessDegradationTests {
         await #expect(throws: HealthAccessError.unavailable) {
             try await harness.sync.requestAccess()
         }
-        #expect(try await harness.sync.accessRequestStatus() == .unnecessary)
+        // Not "unnecessary": that would send the user to a Health app the
+        // device doesn't have.
+        #expect(try await harness.sync.accessRequestStatus() == .unknown)
         #expect(harness.log.entries.isEmpty)
         #expect(harness.anchors.anchor(for: .bodyMass) == nil)
     }
@@ -352,14 +434,69 @@ struct HealthAccessDegradationTests {
         #expect(try await harness.sync.sync() == .synced(upserted: 1, markedDeleted: 0, skipped: 0))
     }
 
-    @Test("a denied read yields an empty history, not an error")
-    func deniedReadLooksEmpty() async throws {
+    @Test("adapter contract: a page with no changes completes a pass without touching the mirror")
+    func emptyPageCompletesPass() async throws {
         let harness = try HealthHarness()
+        // The mock models HealthKit's denied read: no samples, no error.
         harness.health.readDenied = true
         harness.health.seed(healthWeight(1, day: 0, kilograms: 84.0))
 
         #expect(try await harness.sync.sync() == .synced(upserted: 0, markedDeleted: 0, skipped: 0))
         #expect(try harness.mirror().isEmpty)
+    }
+
+    @Test("read denied at the first sync, then allowed on the sheet: requesting access backfills the full history")
+    func requestAccessRestartsBackfill() async throws {
+        let harness = try HealthHarness()
+        harness.health.readDenied = true
+        let scale = healthWeight(1, day: 0, kilograms: 84.0)
+        harness.health.seed(scale)
+        try await harness.sync.sync()
+        // The stored anchor is now past the hidden sample.
+        #expect(harness.anchors.anchor(for: .bodyMass) == MockHealthStore.anchor(1))
+
+        harness.health.readDenied = false
+        try await harness.sync.requestAccess()
+        #expect(harness.anchors.anchor(for: .bodyMass) == nil)
+        #expect(try await harness.sync.sync() == .synced(upserted: 1, markedDeleted: 0, skipped: 0))
+        #expect(try harness.mirror() == [scale])
+    }
+
+    @Test("read turned on later in the Health app: resyncing from the start brings in the hidden history")
+    func resyncFromStartAfterReadAllowed() async throws {
+        let harness = try HealthHarness()
+        harness.health.readDenied = true
+        let scale = healthWeight(1, day: 0, kilograms: 84.0)
+        let own = healthWeight(2, day: 1, kilograms: 83.6, source: ownBundleID)
+        let removed = healthWeight(3, day: 2, kilograms: 83.4, source: ownBundleID)
+        [scale, own, removed].forEach(harness.health.seed)
+        try await harness.sync.sync()
+        #expect(try harness.mirror() == [scale, own, removed].filter { $0.sourceBundleID == ownBundleID })
+
+        // Reading allowed in the Health app: no sheet, so no requestAccess.
+        harness.health.readDenied = false
+        harness.health.requestStatus = .unnecessary
+        harness.health.externalDelete(removed.hkUUID)
+        // A plain sync resumes past the hidden sample and never sees it.
+        #expect(try await harness.sync.sync() == .synced(upserted: 0, markedDeleted: 1, skipped: 0))
+        #expect(try harness.mirror(includingDeleted: false) == [own])
+
+        let result = try await harness.sync.resyncFromStart()
+
+        // The mock replays its whole journal from a nil anchor, so the
+        // deleted sample comes back as an add and then its deletion.
+        #expect(result == .synced(upserted: 3, markedDeleted: 1, skipped: 0))
+        #expect(try harness.mirror(includingDeleted: false) == [scale, own])
+        #expect(try harness.mirror().first { $0.hkUUID == removed.hkUUID }?.deletedInHK == true)
+    }
+
+    @Test("a locked device degrades the sync instead of failing it")
+    func lockedDeviceDegrades() async throws {
+        let harness = try HealthHarness()
+        harness.health.queryError = HealthAccessError.temporarilyUnavailable
+
+        #expect(try await harness.sync.sync() == .degraded(.temporarilyUnavailable))
+        #expect(harness.anchors.anchor(for: .bodyMass) == nil)
     }
 
     @Test("partial access: write denied refuses weigh-ins while reading still syncs")

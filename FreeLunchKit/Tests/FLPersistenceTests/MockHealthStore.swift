@@ -28,11 +28,14 @@ let scaleBundleID = "org.example.scale"
 final class MockHealthStore: HealthStoreAdapter {
     private enum Change {
         case added(WeightSampleData)
+        /// An added sample no weight can hold (the real adapter can't map it).
+        case unreadable
         case deleted(UUID)
     }
 
     let log: CallLog
     var isHealthDataAvailable = true
+    let ownSourceBundleID = ownBundleID
     var sharing: [HealthDataType: HealthAuthorizationStatus] = [.bodyMass: .sharingAuthorized]
     var requestStatus: HealthAuthorizationRequestStatus = .shouldRequest
     /// A denied read: HealthKit returns no samples rather than an error.
@@ -46,6 +49,9 @@ final class MockHealthStore: HealthStoreAdapter {
     /// Runs inside `saveWeight` after the sample is in "Apple Health" and
     /// before the call returns.
     var onSave: ((WeightSampleData) throws -> Void)?
+    /// Awaited inside each anchored query after its page is read and before
+    /// it returns: a real suspension point for overlap tests.
+    var beforeQueryReturns: (@MainActor () async -> Void)?
 
     /// Every anchor an anchored query was given, in order.
     private(set) var queriedAnchors: [HealthQueryAnchor?] = []
@@ -64,6 +70,7 @@ final class MockHealthStore: HealthStoreAdapter {
         for change in journal {
             switch change {
             case .added(let sample): live[sample.hkUUID] = sample
+            case .unreadable: break
             case .deleted(let id): live[id] = nil
             }
         }
@@ -73,6 +80,11 @@ final class MockHealthStore: HealthStoreAdapter {
     /// Another app (or this one, earlier) adds a sample.
     func seed(_ sample: WeightSampleData) {
         journal.append(.added(sample))
+    }
+
+    /// Another app adds a sample the adapter can't read as a weight.
+    func seedUnreadable() {
+        journal.append(.unreadable)
     }
 
     /// Another app deletes a sample.
@@ -119,16 +131,20 @@ final class MockHealthStore: HealthStoreAdapter {
         let end = start + page.count
         var added: [WeightSampleData] = []
         var deleted: [UUID] = []
+        var unreadable = 0
         for change in page {
             switch change {
             case .added(let sample):
                 // Only this app's own samples are visible when reads are denied.
                 if !readDenied || sample.sourceBundleID == ownBundleID { added.append(sample) }
+            case .unreadable:
+                if !readDenied { unreadable += 1 }
             case .deleted(let id):
                 if !readDenied { deleted.append(id) }
             }
         }
-        return HealthWeightChanges(added: added, deleted: deleted, anchor: Self.anchor(end))
+        await beforeQueryReturns?()
+        return HealthWeightChanges(added: added, deleted: deleted, unreadable: unreadable, anchor: Self.anchor(end))
     }
 
     func saveWeight(_ weight: Kilograms, at date: Date) async throws -> WeightSampleData {
@@ -154,6 +170,10 @@ final class MockHealthStore: HealthStoreAdapter {
         if let error = deleteError {
             deleteError = nil
             throw error
+        }
+        // Apple Health refuses to delete another source's sample.
+        if let live = liveSamples.first(where: { $0.hkUUID == hkUUID }), live.sourceBundleID != ownBundleID {
+            throw FreeLunchStoreError.importedRecordImmutable(hkUUID)
         }
         journal.append(.deleted(hkUUID))
     }
@@ -188,6 +208,10 @@ final class RecordingWeightStore: WeightStore {
 
     func weightSamples(includingDeletedInHK: Bool) throws -> [WeightSampleData] {
         try base.weightSamples(includingDeletedInHK: includingDeletedInHK)
+    }
+
+    func weightSample(hkUUID: UUID) throws -> WeightSampleData? {
+        try base.weightSample(hkUUID: hkUUID)
     }
 
     func addCorrection(_ correction: CorrectionData) throws {
@@ -252,7 +276,6 @@ struct HealthHarness {
             health: health,
             weights: weights,
             anchors: self.anchors,
-            ownSourceBundleID: ownBundleID,
             pageLimit: pageLimit
         )
     }
