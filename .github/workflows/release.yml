@@ -337,7 +337,7 @@ jobs:
       # as fastlane uses with Xcode 26's altool; no --verbose, which can
       # echo identifiers into this public log. Xcode 26's altool has exited
       # 0 on server-side errors, so the step fails on error text as well as
-      # on the exit code.
+      # on the exit code, and passes only when altool reports success.
       - name: Validate .ipa with App Store Connect (dry run, no upload)
         if: github.event_name == 'workflow_dispatch'
         timeout-minutes: 15
@@ -372,13 +372,25 @@ jobs:
           rc=${PIPESTATUS[0]}
           set -e
 
-          if (( rc != 0 )) || grep -Eiq '(^|[^[:alnum:]_])error:|\*\*\* ?error|validation failed|verif(y|ication) failed|upload failed|90683' "$LOG"; then
+          # Failure text in the forms altool and Transporter print: a log-level
+          # "ERROR:", "*** Error", "ERROR ITMS-<code>", an NSError dump, the
+          # "VERIFY FAILED" banner, "Failed to validate package", and 90683 as
+          # a whole number (not inside a hex delivery ID). Bare ITMS codes are
+          # not matched because warnings carry them too.
+          ERR='(^|[^[:alnum:]_])error:|\*\*\* ?error|(^|[^[:alnum:]_])error[[:space:]]+itms-[0-9]+|error domain=|(validation|verif(y|ication)|upload) failed|failed to validate|(^|[^0-9a-f])90683([^0-9a-f]|$)'
+          WARN='(^|[^[:alnum:]_])warn(ing)?:|\*\*\* ?warning|(^|[^[:alnum:]_])warning[[:space:]]+itms-[0-9]+'
+          if (( rc != 0 )) || grep -Eiq "$ERR" "$LOG"; then
             echo "::error::App Store Connect validation failed (altool exit $rc); see validate.log"
             exit 1
           fi
-          { grep -Ei '(^|[^[:alnum:]_])warning:|\*\*\* ?warning' "$LOG" || true; } | head -n 10 | sed 's/^/::warning::/'
+          { grep -Ei "$WARN" "$LOG" || true; } | head -n 10 | sed 's/^/::warning::/'
+          # Pass only on positive evidence: Xcode 26.6 prints "VERIFY
+          # SUCCEEDED with no errors" and "No errors validating archive".
+          # If a later Xcode words it differently, this fails loudly rather
+          # than reporting an unconfirmed validation as a pass.
           if ! grep -Eiq 'verify succeeded|no errors validating|validat[a-z]* succe|succe[a-z]* validat' "$LOG"; then
-            echo "::warning::altool printed no recognised success line; read validate.log"
+            echo "::error::altool printed no recognised success line; read validate.log"
+            exit 1
           fi
           echo "Dry run: App Store Connect validated the .ipa; nothing was uploaded." | tee -a "$GITHUB_STEP_SUMMARY"
 
