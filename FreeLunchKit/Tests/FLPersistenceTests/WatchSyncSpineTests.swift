@@ -330,6 +330,8 @@ struct WatchSyncSpineTests {
         link.pump()
         #expect(Set(applier.rows.keys) == Set(ids))
         #expect(try store.outbox().isEmpty)
+        // The link holds receivers weakly; keep the phone side running.
+        withExtendedLifetime(phone) {}
     }
 
     @Test("a stale resend after a phone-side edit leaves the edit in place and still prunes")
