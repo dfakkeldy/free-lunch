@@ -7,8 +7,8 @@ import FLCore
 import Foundation
 
 /// Apple Health, as Free Lunch uses it. Only the phone builds one: the phone
-/// is Free Lunch's sole HealthKit writer (spec §9), and the watch app doesn't
-/// link this module.
+/// is Free Lunch's sole HealthKit writer (spec §9), and the real adapter,
+/// `HealthKitStoreAdapter`, never compiles for watchOS.
 ///
 /// Implementations report a missing device capability or denied access by
 /// throwing `HealthAccessError`; callers turn that into a degraded state.

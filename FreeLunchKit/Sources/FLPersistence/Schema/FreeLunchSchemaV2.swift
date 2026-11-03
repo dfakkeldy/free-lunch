@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // FreeLunchSchemaV2 — the v1 schema plus DietarySampleMirror (the spec §1
-// amendment declared in §10) and the energy-settings pair, EnergySettingsRecord
+// amendment declared in §10), the energy-settings pair, EnergySettingsRecord
 // and DidNotTrackMark (the persisted home of what spec §3 and §6 settings the
-// engine reads). V1 shipped to TestFlight, so its models are frozen and this
-// version is an append: FreeLunchMigrationPlan migrates V1 stores to it.
+// engine reads), and AppliedOutboxRecord (the phone's ledger of applied watch
+// outbox items, spec §9). V1 shipped to TestFlight, so its models are frozen
+// and this version is an append: FreeLunchMigrationPlan migrates V1 stores to
+// it.
 //
 // A versioned schema is a complete snapshot, not a diff, so every model is
 // declared again here as a nested copy. Nothing in this file names a V1
@@ -46,7 +48,8 @@ enum FreeLunchSchemaV2: VersionedSchema {
             WatchOutboxRecord.self,
             DietarySampleMirror.self,
             EnergySettingsRecord.self,
-            DidNotTrackMark.self
+            DidNotTrackMark.self,
+            AppliedOutboxRecord.self
         ]
     }
 }
@@ -731,6 +734,30 @@ extension FreeLunchSchemaV2 {
 
         init(day: Date) {
             self.day = day
+        }
+    }
+}
+
+// Sync spine (spec §9): AppliedOutboxRecord.
+
+extension FreeLunchSchemaV2 {
+    /// One watch outbox item the phone has applied, keyed by the item's
+    /// acknowledgement id (`WatchOutboxItem.id`). Phone store only.
+    ///
+    /// The ledger is what keeps a late retransmission from undoing a
+    /// phone-side delete: an id found here is acked without being applied
+    /// again. Rows are kept indefinitely, one small row per applied outbox
+    /// item (one per shot or meal, one per hunger edit), with no pruning: a retransmission can arrive after any delay
+    /// (a watch left off for weeks still holds its unacked outbox), so no
+    /// age is safe to forget.
+    @Model
+    final class AppliedOutboxRecord {
+        @Attribute(.unique) var id: UUID
+        var appliedAt: Date
+
+        init(id: UUID, appliedAt: Date) {
+            self.id = id
+            self.appliedAt = appliedAt
         }
     }
 }

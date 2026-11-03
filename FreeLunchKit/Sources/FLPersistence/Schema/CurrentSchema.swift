@@ -35,3 +35,4 @@ typealias WatchOutboxRecord = FreeLunchSchemaCurrent.WatchOutboxRecord
 typealias DietarySampleMirror = FreeLunchSchemaCurrent.DietarySampleMirror
 typealias EnergySettingsRecord = FreeLunchSchemaCurrent.EnergySettingsRecord
 typealias DidNotTrackMark = FreeLunchSchemaCurrent.DidNotTrackMark
+typealias AppliedOutboxRecord = FreeLunchSchemaCurrent.AppliedOutboxRecord

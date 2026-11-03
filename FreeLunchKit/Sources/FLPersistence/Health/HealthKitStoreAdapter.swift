@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // The real `HealthStoreAdapter`, over `HKHealthStore`. It lives in the
-// package (not the phone target) so it compiles wherever the package does and
-// sits next to the protocol it implements; it stays thin — type mapping and
-// HealthKit calls only — because the logic above it is what the tests cover.
-// FLPersistence is linked by the phone app alone, so no HealthKit write path
-// is reachable from the watch (spec §9).
-#if canImport(HealthKit)
+// package (not the phone target) and sits next to the protocol it implements;
+// it stays thin — type mapping and HealthKit calls only — because the logic
+// above it is what the tests cover, against a mock on the macOS host.
+// Never on watchOS: the sync spine puts the watch's half in FLPersistence
+// too, so the watch app may link this package, and the phone is the only
+// HealthKit writer (spec §9). `canImport(HealthKit)` would be true on watchOS.
+// macOS stays in so `swift test` on the Mac host type-checks the adapter.
+#if os(iOS) || os(macOS)
 import FLCore
 import Foundation
 import HealthKit

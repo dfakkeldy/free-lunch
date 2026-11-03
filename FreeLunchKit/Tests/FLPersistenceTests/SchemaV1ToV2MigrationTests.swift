@@ -50,6 +50,7 @@ struct SchemaV1ToV2MigrationTests {
         #expect(try store.rowCount(DietarySampleMirror.self) == 0)
         #expect(try store.rowCount(EnergySettingsRecord.self) == 0)
         #expect(try store.rowCount(DidNotTrackMark.self) == 0)
+        #expect(try store.rowCount(AppliedOutboxRecord.self) == 0)
         try expectSpotValues(store)
     }
 
@@ -83,6 +84,8 @@ struct SchemaV1ToV2MigrationTests {
             #expect(try store.energySettings() == .defaults)
             try store.setTrendAlpha(0.2)
             try store.markDidNotTrack(day: at(day: 4), calendar: utcCalendar)
+            #expect(try !store.hasAppliedOutboxItem(id: uid(80_110)))
+            try store.recordAppliedOutboxItem(id: uid(80_110), appliedAt: at(day: 6))
         }
 
         // A second open is V2 → V2: no stage runs and both lanes survive.
@@ -93,6 +96,7 @@ struct SchemaV1ToV2MigrationTests {
         )
         #expect(try reopened.energySettings().smoothing.alpha == 0.2)
         #expect(try reopened.didNotTrackDays(calendar: utcCalendar) == [utcCalendar.startOfDay(for: at(day: 4))])
+        #expect(try reopened.hasAppliedOutboxItem(id: uid(80_110)))
     }
 
     // MARK: - Fixture

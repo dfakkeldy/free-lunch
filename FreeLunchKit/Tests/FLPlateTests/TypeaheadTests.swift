@@ -171,6 +171,30 @@ struct TypeaheadTests {
         ])
     }
 
+    @Test("the watch digest is the empty-query order with last portions (spec §9)")
+    func watchDigestOrder() {
+        let digest = WatchDigestBuilder.recentFoods(from: foods, now: now)
+
+        #expect(digest.map(\.name) == ["Oatmeal", "Banana", "Apple", "Almonds", "Green apple", "Egg"])
+        #expect(digest.map(\.lastPortionGrams) == [40, 118, 182, 28, nil, 50])
+        #expect(digest.map(\.foodID) == foodIDs(Typeahead.rows(query: "", foods: foods, now: now)))
+        #expect(WatchDigestBuilder.recentFoods(from: foods.reversed(), now: now) == digest)
+    }
+
+    @Test("the watch digest caps at 200 foods, keeping the best ranked")
+    func watchDigestCap() {
+        let many = foods + (100...349).map { number in
+            food(number, "Food \(number)", useCount: number % 7 + 1, lastUsedAt: ago(Double(number % 45)))
+        }
+        let ranked = foodIDs(Typeahead.rows(query: "", foods: many, now: now, foodLimit: many.count))
+        let digest = WatchDigestBuilder.recentFoods(from: many, now: now)
+
+        #expect(ranked.count == 256)
+        #expect(digest.count == WatchDigestData.recentFoodCap)
+        #expect(digest.map(\.foodID) == Array(ranked.prefix(200)))
+        #expect(!digest.contains { $0.name == "Banana bread" })
+    }
+
     @Test("scores follow the thirty day half-life")
     func scores() {
         #expect(abs(Typeahead.score(useCount: 10, lastUsedAt: ago(0), now: now) - 10) < 1e-9)
@@ -282,6 +306,13 @@ struct TypeaheadTests {
             case let .tail(action):
                 return "tail:\(tailLabel(action))"
             }
+        }
+    }
+
+    private func foodIDs(_ rows: [TypeaheadRow]) -> [UUID] {
+        rows.compactMap { row in
+            guard case let .food(food, _, _) = row else { return nil }
+            return food.id
         }
     }
 
