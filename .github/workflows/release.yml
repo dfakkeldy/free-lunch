@@ -375,8 +375,10 @@ jobs:
           # Failure text in the forms altool and Transporter print: a log-level
           # "ERROR:", "*** Error", "ERROR ITMS-<code>", an NSError dump, the
           # "VERIFY FAILED" banner, "Failed to validate package", and 90683 as
-          # a whole number (not inside a hex delivery ID). Bare ITMS codes are
-          # not matched because warnings carry them too.
+          # a whole number (not inside a hex delivery ID). 90683 fails the step
+          # even on a WARNING line, on purpose: App Store Connect refused the
+          # first fl-m0 upload outright with it (run 41565959182). Other bare
+          # ITMS codes are not matched because warnings carry them too.
           ERR='(^|[^[:alnum:]_])error:|\*\*\* ?error|(^|[^[:alnum:]_])error[[:space:]]+itms-[0-9]+|error domain=|(validation|verif(y|ication)|upload) failed|failed to validate|(^|[^0-9a-f])90683([^0-9a-f]|$)'
           WARN='(^|[^[:alnum:]_])warn(ing)?:|\*\*\* ?warning|(^|[^[:alnum:]_])warning[[:space:]]+itms-[0-9]+'
           if (( rc != 0 )) || grep -Eiq "$ERR" "$LOG"; then
