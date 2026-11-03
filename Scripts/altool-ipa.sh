@@ -86,27 +86,33 @@ WARN='(^|[^[:alnum:]_])warn(ing)?:|\*\*\* ?warning|(^|[^[:alnum:]_])warning[[:sp
 # ("... received status code 500; internal server error"), then carries on.
 # On 2026-11-03 two of Burly's dry runs printed one and four of them (runs
 # 41637871174 and 41639022159) and both still ended "VERIFY SUCCEEDED with
-# no errors". Those lines, and only those, are retry notices
-# rather than verdicts: they count as warnings when altool also printed its
-# success line below, and still fail the step when it did not. 90683 and
-# every other error line fail regardless.
+# no errors". Those lines, and only those, are retry notices rather than
+# verdicts: they count as warnings when altool also printed its success line
+# below, and still fail the step when it did not. 90683 and every other
+# error line fail regardless.
 # The exact shape of those notices, e.g. "ERROR: [ContentDelivery.Uploader.
 # 97AC14400] GET UPLOAD STATE (ASSET_SPI): received status code 500;
 # internal server error. (MCTJQGUYKIMWUZMYMG2ZA6WKLQ) (500)". Anything that
 # merely mentions a 5xx (an "UPLOAD FAILED ... status code 500" banner, say)
 # is not a retry notice and still fails.
 # Anchored at both ends; the only prefix allowed is altool's own timestamp.
-RETRY='^([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9:.]+ )?ERROR: \[[A-Za-z0-9._]+\] [^:]+: received status code 5[0-9]{2}; [A-Za-z ]+\. \([A-Z0-9]+\) \(5[0-9]{2}\)[[:space:]]*$'
-VERDICT_CODE='itms-[0-9]+|90683|fail'
-# altool's success banners, each a whole line of its own (as in every
-# passing log so far), so the phrase quoted inside other text, such as
-# "did not: VERIFY SUCCEEDED", is not a success.
+# The reason is letters, spaces and hyphens ("gateway time-out"), so it
+# cannot carry a code.
+RETRY='^([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9:.]+ )?ERROR: \[[A-Za-z0-9._]+\] [^:]+: received status code 5[0-9]{2}; [A-Za-z -]+\. \([A-Z0-9]+\) \(5[0-9]{2}\)[[:space:]]*$'
+# Each starts a word, and 90683 stands alone as in ERR, so a hex instance tag
+# or a base32 request ID that happens to contain one is not a verdict.
+VERDICT_CODE='(^|[^[:alnum:]])(itms-[0-9]+|fail)|(^|[^[:alnum:]_])90683([^[:alnum:]_]|$)'
+# altool's success banners, each at the start of its own line, so the phrase
+# quoted inside other text, such as "did not: VERIFY SUCCEEDED", is not a
+# success. Anything may follow, such as ", 2 warnings" after "with no errors".
 if [[ "$MODE" == validate ]]; then
-  SUCCESS="^verify succeeded with no errors[[:space:]]*\$|^no errors validating archive at '"
+  SUCCESS="^verify succeeded with no errors|^no errors validating archive at '"
 else
-  SUCCESS="^upload succeeded with no errors[[:space:]]*\$|^no errors uploading archive at '"
+  SUCCESS="^upload succeeded with no errors|^no errors uploading archive at '"
 fi
-error_lines="$(grep -Ei "$ERR" "$LOG" || true)"
+# -a throughout: a stray NUL byte must not turn the log into "Binary file
+# matches".
+error_lines="$(grep -Eai "$ERR" "$LOG" || true)"
 # A retry notice has exactly that shape and no ITMS code or "fail" in it.
 retries="$(printf '%s\n' "$error_lines" | grep -E "$RETRY" | grep -Eiv "$VERDICT_CODE" || true)"
 if [[ -n "$retries" ]]; then
@@ -114,7 +120,7 @@ if [[ -n "$retries" ]]; then
 else
   errors="$error_lines"
 fi
-if [[ -n "$retries" ]] && ! grep -Eiq "$SUCCESS" "$LOG"; then
+if [[ -n "$retries" ]] && ! grep -Eaiq "$SUCCESS" "$LOG"; then
   errors+="$retries"
 fi
 errors="$(printf '%s' "$errors" | sed '/^[[:space:]]*$/d')"
@@ -126,7 +132,7 @@ if (( rc != 0 )) || [[ -n "$errors" ]]; then
   fi
   fail "App Store Connect $DOING failed (altool exit $rc); see $(basename "$LOG")"
 fi
-{ grep -Ei "$WARN" "$LOG" || true; printf '%s\n' "$retries"; } | sed '/^$/d' | sed -n '1,10s/^/::warning::/p'
+{ grep -Eai "$WARN" "$LOG" || true; printf '%s\n' "$retries"; } | sed '/^$/d' | sed -n '1,10s/^/::warning::/p'
 
 # Pass only on positive evidence. Xcode 26.6 prints "VERIFY SUCCEEDED with
 # no errors" and "No errors validating archive" for a validation (seen in
@@ -134,5 +140,5 @@ fi
 # an upload (SUCCESS above). Looser wording such as "not successfully
 # validated" must not pass; if a later Xcode words it differently, this
 # fails loudly rather than reporting an unconfirmed result as a pass.
-grep -Eiq "$SUCCESS" "$LOG" || fail "altool printed no recognised success line; read $(basename "$LOG")"
+grep -Eaiq "$SUCCESS" "$LOG" || fail "altool printed no recognised success line; read $(basename "$LOG")"
 echo "App Store Connect $DOING succeeded for $(basename "${IPAS[0]}")"
