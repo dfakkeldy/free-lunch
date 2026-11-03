@@ -12,7 +12,14 @@
 //   number and refuses anything outside 0.05–0.25 (or NaN) before any row is
 //   touched. Loading validates every field again and refuses a row that
 //   fails, so a damaged store never reads as plausible settings.
-// - A mark is one row per calendar day. Marking is idempotent.
+// - A mark is one row per calendar day, stored as a civil-day key (the
+//   year, month and day it was marked on, as midnight UTC), not as the
+//   instant that day started where it was marked. Read back in any time
+//   zone it is the same calendar day, and unmarking finds it from any zone.
+//   Marking is idempotent.
+// - A formula activation never starts before today (spec §3 "Versioning":
+//   forward only). The only retroactive path is the labeled re-run history
+//   action, which does not go through the settings.
 //
 // Nothing here recomputes anything. EnergyRecomputeCoordinator owns when the
 // engine runs; this file only holds what it reads.
@@ -33,6 +40,9 @@ public enum EnergySettingsError: Error, Equatable, Sendable {
     /// The formula activation was refused: it names a day before the latest
     /// activation (activation is forward-only, spec §3).
     case retroactiveActivation(latestEffectiveFrom: Date)
+    /// The formula activation was refused: it names a day before today, whose
+    /// history is already rendered (activation is forward-only, spec §3).
+    case activationBeforeToday(today: Date)
 }
 
 /// Settings the energy engine reads, and the days marked "didn't track".
@@ -47,20 +57,20 @@ public protocol EnergySettingsStore: AnyObject {
     func setTrendAlpha(_ alpha: Double) throws
     func setRateGoal(kgPerWeek: Double) throws
     func setAdoptionMode(_ mode: AdoptionMode) throws
-    /// Replaces the activation schedule.
-    func setFormulaActivationSchedule(_ schedule: FormulaActivationSchedule) throws
     /// Appends an activation of `formula` from `day`'s calendar day on
-    /// (spec §3: forward-only). Throws `retroactiveActivation` for a day
-    /// before the latest activation.
-    func activateFormula(_ formula: EnergyFormulaVersion, from day: Date, calendar: Calendar) throws
+    /// (spec §3: forward-only). Throws `activationBeforeToday` for a day
+    /// before `today`'s calendar day and `retroactiveActivation` for a day
+    /// before the latest activation; either leaves the store unchanged.
+    func activateFormula(_ formula: EnergyFormulaVersion, from day: Date, today: Date, calendar: Calendar) throws
 
-    /// Marks `day`'s calendar day "didn't track". Marking a marked day
-    /// changes nothing.
+    /// Marks `day`'s calendar day in `calendar` "didn't track". Marking a
+    /// marked day changes nothing.
     func markDidNotTrack(day: Date, calendar: Calendar) throws
-    /// Removes the mark; an unmarked day is left as it is.
+    /// Removes the mark on `day`'s calendar day in `calendar`; an unmarked
+    /// day is left as it is.
     func unmarkDidNotTrack(day: Date, calendar: Calendar) throws
-    /// The marked days, each the start of its calendar day.
-    func didNotTrackDays() throws -> Set<Date>
+    /// The marked days, each the start of its calendar day in `calendar`.
+    func didNotTrackDays(calendar: Calendar) throws -> Set<Date>
 }
 
 extension SwiftDataStore: EnergySettingsStore {
@@ -91,14 +101,27 @@ extension SwiftDataStore: EnergySettingsStore {
         try updateSettings { $0.adoptionModeRaw = mode.rawValue }
     }
 
-    public func setFormulaActivationSchedule(_ schedule: FormulaActivationSchedule) throws {
+    /// Replaces the whole activation schedule. Internal: it can drop or
+    /// backdate activations that already rendered history, so the public
+    /// path is ``activateFormula(_:from:today:calendar:)``. Tests use it to
+    /// round-trip a schedule.
+    func setFormulaActivationSchedule(_ schedule: FormulaActivationSchedule) throws {
         try requireStoreKind(.phone, operation: "setFormulaActivationSchedule")
         let json = try EnergySettingsCoding.encode(schedule)
         try updateSettings { $0.activationScheduleJSON = json }
     }
 
-    public func activateFormula(_ formula: EnergyFormulaVersion, from day: Date, calendar: Calendar) throws {
+    public func activateFormula(
+        _ formula: EnergyFormulaVersion,
+        from day: Date,
+        today: Date,
+        calendar: Calendar
+    ) throws {
         try requireStoreKind(.phone, operation: "activateFormula")
+        let todayStart = calendar.startOfDay(for: today)
+        guard calendar.startOfDay(for: day) >= todayStart else {
+            throw EnergySettingsError.activationBeforeToday(today: todayStart)
+        }
         let current = try energySettings().schedule
         let next: FormulaActivationSchedule
         do {
@@ -114,22 +137,24 @@ extension SwiftDataStore: EnergySettingsStore {
 
     public func markDidNotTrack(day: Date, calendar: Calendar) throws {
         try requireStoreKind(.phone, operation: "markDidNotTrack")
-        let start = calendar.startOfDay(for: day)
-        guard try markRow(day: start) == nil else { return }
-        context.insert(DidNotTrackMark(day: start))
+        let key = try EnergySettingsCoding.dayKey(for: day, calendar: calendar)
+        guard try markRow(day: key) == nil else { return }
+        context.insert(DidNotTrackMark(day: key))
         try commit()
     }
 
     public func unmarkDidNotTrack(day: Date, calendar: Calendar) throws {
         try requireStoreKind(.phone, operation: "unmarkDidNotTrack")
-        guard let row = try markRow(day: calendar.startOfDay(for: day)) else { return }
+        guard let row = try markRow(day: try EnergySettingsCoding.dayKey(for: day, calendar: calendar)) else { return }
         context.delete(row)
         try commit()
     }
 
-    public func didNotTrackDays() throws -> Set<Date> {
+    public func didNotTrackDays(calendar: Calendar) throws -> Set<Date> {
         try requireStoreKind(.phone, operation: "didNotTrackDays")
-        return Set(try context.fetch(FetchDescriptor<DidNotTrackMark>()).map(\.day))
+        return Set(try context.fetch(FetchDescriptor<DidNotTrackMark>()).map {
+            try EnergySettingsCoding.day(forKey: $0.day, calendar: calendar)
+        })
     }
 
     // MARK: - Helpers
@@ -154,7 +179,7 @@ extension SwiftDataStore: EnergySettingsStore {
         if let existing = try settingsRow() {
             row = existing
         } else {
-            row = EnergySettingsRecord(from: .defaults)
+            row = try EnergySettingsRecord(from: .defaults)
             context.insert(row)
         }
         change(row)
@@ -179,17 +204,46 @@ enum EnergySettingsCoding {
     static func decodeSchedule(_ data: Data) -> FormulaActivationSchedule? {
         try? JSONDecoder().decode(FormulaActivationSchedule.self, from: data)
     }
+
+    /// Gregorian in UTC: the frame a stored day key is written in.
+    private static let keyCalendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .gmt
+        return calendar
+    }()
+
+    /// The stored key for `day`'s calendar day in `calendar`: that day's
+    /// Gregorian year, month and day as midnight UTC. It names a calendar
+    /// day, not an instant, so it does not move with the time zone.
+    static func dayKey(for day: Date, calendar: Calendar) throws -> Date {
+        var local = Calendar(identifier: .gregorian)
+        local.timeZone = calendar.timeZone
+        let parts = local.dateComponents([.year, .month, .day], from: calendar.startOfDay(for: day))
+        guard let key = keyCalendar.date(from: parts) else { throw EnergySettingsError.invalidStoredSettings }
+        return key
+    }
+
+    /// The start, in `calendar`, of the calendar day a stored key names.
+    static func day(forKey key: Date, calendar: Calendar) throws -> Date {
+        var local = Calendar(identifier: .gregorian)
+        local.timeZone = calendar.timeZone
+        let parts = keyCalendar.dateComponents([.year, .month, .day], from: key)
+        guard let day = local.date(from: parts) else { throw EnergySettingsError.invalidStoredSettings }
+        return calendar.startOfDay(for: day)
+    }
 }
 
 extension EnergySettingsRecord {
-    /// A row holding `settings`' values.
-    convenience init(from settings: EnergySettings) {
+    /// A row holding `settings`' values. The default schedule (builtin
+    /// formula from the start) is stored as nil.
+    convenience init(from settings: EnergySettings) throws {
         self.init(
             singletonKey: EnergySettingsCoding.singletonKey,
             trendAlpha: settings.smoothing.alpha,
             rateGoalKgPerWeek: settings.rateGoal.kgPerWeek,
             adoptionModeRaw: settings.adoptionMode.rawValue,
-            activationScheduleJSON: nil
+            activationScheduleJSON: settings.schedule == FormulaActivationSchedule()
+                ? nil : try EnergySettingsCoding.encode(settings.schedule)
         )
     }
 

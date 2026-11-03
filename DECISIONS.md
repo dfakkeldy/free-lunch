@@ -22,8 +22,17 @@ stays lightweight.
   target ledger uses today; linking them to FormulaVersion rows is the
   registered-formula work that already tracks that.
 - **Marks are rows, not a setting.** `DidNotTrackMark` is one row per
-  calendar day (the start of the day in the calendar it was marked in).
-  Marking twice changes nothing.
+  calendar day. The stored `day` is a key for the civil day (its Gregorian
+  year, month and day at midnight UTC), not the instant the day started where
+  it was marked, so a time-zone change neither moves a mark to another day
+  nor hides it from unmarking. Readers get it back as the start of that day
+  in their own calendar. Marking twice changes nothing. Activation dates and
+  `TargetPeriod.startDate` still store a start-of-day instant; they are not
+  changed here.
+- **Activation starts today or later.** `activateFormula` takes today and
+  refuses an earlier day, even from the default schedule, so a settings write
+  cannot rewrite rendered history. Replacing the whole schedule is internal;
+  the labeled re-run history action stays the only retroactive path.
 - **α is validated at the store boundary.** The setter takes the raw number
   and refuses anything outside 0.05 to 0.25 or NaN before touching a row;
   loading validates every field again and refuses a damaged row.
@@ -31,7 +40,10 @@ stays lightweight.
   rebuilds the key after each settings write and runs the engine only when
   `EnergyRecomputeReason.reasons` is non-empty, so a real change costs one
   recompute however many reasons it reports, and a write that changes no input
-  costs none. The computation is injectable so tests count real runs.
+  costs none. The computation is injectable so tests count real runs. The
+  re-adoption suggestion reads the target ledger, which is not in the key,
+  so a refresh with an unchanged key re-reads the open period and updates
+  the suggestion without running the engine.
 - **α cannot flip a pause state under `FL-EB v1`.** Trend definedness (three
   samples over five days) does not depend on α, so a change of α moves the
   estimate but not the tracking or paused state. Spec section 6 acceptance 3

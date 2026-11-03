@@ -92,7 +92,7 @@ struct SchemaV1ToV2MigrationTests {
             try reopened.dietarySamples(from: at(day: 5), through: at(day: 5), calendar: utcCalendar) == [dietary]
         )
         #expect(try reopened.energySettings().smoothing.alpha == 0.2)
-        #expect(try reopened.didNotTrackDays() == [utcCalendar.startOfDay(for: at(day: 4))])
+        #expect(try reopened.didNotTrackDays(calendar: utcCalendar) == [utcCalendar.startOfDay(for: at(day: 4))])
     }
 
     // MARK: - Fixture

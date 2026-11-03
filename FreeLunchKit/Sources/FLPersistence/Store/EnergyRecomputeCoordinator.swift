@@ -12,6 +12,12 @@
 // no recompute, and a write that changes one costs exactly one, however many
 // reasons the diff reports.
 //
+// The re-adoption suggestion is the one part of a result that reads the
+// target ledger, which is not an engine input and so not in the key. A
+// refresh that finds the key unchanged still re-reads the open period, so an
+// adoption (explicit or weekly) clears or moves the suggestion without
+// running the engine again.
+//
 // The computation itself is injectable (`compute`). The default is
 // `EnergyBinding.recompute`; a test passes a counting wrapper to see how
 // many times the engine really ran.
@@ -46,7 +52,7 @@ extension EnergyBinding {
         return try key(
             store: store, today: today, historyFrom: historyFrom, weights: series,
             schedule: settings.schedule, rateGoal: settings.rateGoal, calendar: calendar,
-            markedDidNotTrack: try store.didNotTrackDays()
+            markedDidNotTrack: try store.didNotTrackDays(calendar: calendar)
         )
     }
 }
@@ -85,15 +91,28 @@ public final class EnergyRecomputeCoordinator<Store: MealStore & TargetStore & W
     }
 
     /// Recomputes if an input changed since the last computation and
-    /// otherwise returns it unchanged. When the computation throws, the last
-    /// result and its key stand, so the next call tries again.
+    /// otherwise returns it with the re-adoption suggestion re-read against
+    /// the stored ledger. When the computation throws, the last result and
+    /// its key stand, so the next call tries again.
     @discardableResult
     public func refresh() throws -> LiveEnergy {
         let key = try EnergyBinding.key(
             store: store, today: today, historyFrom: historyFrom, calendar: calendar, weights: weights
         )
         if let latest, EnergyRecomputeReason.reasons(from: latest.key, to: key).isEmpty {
-            return latest
+            let suggestion = try latest.calculatedTarget.flatMap {
+                try store.targetLedger().readoptionSuggestion(live: $0)
+            }
+            guard suggestion != latest.readoptionSuggestion else { return latest }
+            let updated = LiveEnergy(
+                key: latest.key,
+                history: latest.history,
+                evaluation: latest.evaluation,
+                calculatedTarget: latest.calculatedTarget,
+                readoptionSuggestion: suggestion
+            )
+            self.latest = updated
+            return updated
         }
         let energy = try compute(key)
         latest = energy
@@ -124,9 +143,11 @@ public final class EnergyRecomputeCoordinator<Store: MealStore & TargetStore & W
         return try refresh()
     }
 
+    /// Forward only: a `day` before the coordinator's today is refused
+    /// (spec §3 "Versioning").
     @discardableResult
     public func activateFormula(_ formula: EnergyFormulaVersion, from day: Date) throws -> LiveEnergy {
-        try store.activateFormula(formula, from: day, calendar: calendar)
+        try store.activateFormula(formula, from: day, today: today, calendar: calendar)
         return try refresh()
     }
 

@@ -173,14 +173,63 @@ struct EnergyRecomputeCoordinatorTests {
         let ratedTarget = try #require(rated.calculatedTarget)
         #expect(abs((baseTarget.kcalPerDay - ratedTarget.kcalPerDay) - 550) < 1e-9)
 
-        let activated = try coordinator.activateFormula(E.v2, from: E.day(20))
+        // Activating from today: today runs under v2 (ρ 7000), the days
+        // before it keep the math they rendered with (forward only).
+        let activated = try coordinator.activateFormula(E.v2, from: E.morning(25))
         #expect(counter.count == 3)
         #expect(activated.key.schedule.latest == E.v2)
+        let ratedEstimate = try #require(rated.evaluation.estimate)
+        let activatedEstimate = try #require(activated.evaluation.estimate)
+        #expect(ratedEstimate.energyDensityKcalPerKg != 7_000)
+        #expect(activatedEstimate.energyDensityKcalPerKg == 7_000)
+        #expect(activatedEstimate.meanIntakeKcal == ratedEstimate.meanIntakeKcal)
+        #expect(activatedEstimate.trendDeltaKg == ratedEstimate.trendDeltaKg)
+        #expect(activatedEstimate.kcalPerDay != ratedEstimate.kcalPerDay)
+        #expect(Array(activated.history.days.dropLast()) == Array(rated.history.days.dropLast()))
+
+        // An activation before today would rewrite rendered history: refused,
+        // nothing stored, nothing run.
+        #expect(throws: EnergySettingsError.activationBeforeToday(today: E.day(25))) {
+            try coordinator.activateFormula(.builtinV1, from: E.noon(24))
+        }
+        #expect(counter.count == 3)
+        #expect(try store.energySettings().schedule == activated.key.schedule)
 
         // Adoption mode is not an engine input.
         try store.setAdoptionMode(.weeklyAutoAdopt)
         _ = try coordinator.refresh()
         #expect(counter.count == 3)
+    }
+
+    @Test("an adoption clears the re-adoption suggestion on the next refresh without rerunning the engine")
+    func adoptionRefreshesSuggestion() throws {
+        let store = try makeFixtureStore()
+        try store.registerFormulaVersion(E.v1Row)
+        let counter = RecomputeCounter()
+        let coordinator = makeCoordinator(store, counter: counter)
+        let live = try #require(try coordinator.refresh().calculatedTarget)
+        // An open period 300 kcal under the live target: the suggestion shows.
+        try store.adoptTarget(
+            TargetAdoption(
+                calculated: live, adoptedTargetKcal: live.kcalPerDay - 300, macros: E.macros(), formula: .builtinV1
+            ),
+            on: E.noon(25), calendar: E.calendar, id: uid(1)
+        )
+        let drifted = try coordinator.refresh()
+        #expect(drifted.readoptionSuggestion != nil)
+        #expect(coordinator.latest == drifted)
+
+        // Re-adopting at the live value: no input to the engine changed, but
+        // the suggestion is gone.
+        try store.adoptTarget(
+            TargetAdoption(calculated: live, macros: E.macros(), formula: .builtinV1),
+            on: E.noon(25), calendar: E.calendar, id: uid(2)
+        )
+        let adopted = try coordinator.refresh()
+        #expect(adopted.readoptionSuggestion == nil)
+        #expect(coordinator.latest == adopted)
+        #expect(adopted.evaluation == drifted.evaluation)
+        #expect(counter.count == 1)
     }
 
     @Test("a failed computation keeps the last result and is retried by the next refresh")

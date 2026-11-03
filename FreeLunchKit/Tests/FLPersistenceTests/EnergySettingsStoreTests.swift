@@ -30,7 +30,7 @@ struct EnergySettingsDefaultsTests {
         #expect(settings.rateGoal == .maintenance)
         #expect(settings.schedule == FormulaActivationSchedule())
         #expect(settings.schedule.latest == .builtinV1)
-        #expect(try store.didNotTrackDays().isEmpty)
+        #expect(try store.didNotTrackDays(calendar: E.calendar).isEmpty)
         // Reading creates nothing.
         #expect(try store.rowCount(EnergySettingsRecord.self) == 0)
     }
@@ -93,6 +93,18 @@ struct EnergySettingsDefaultsTests {
         #expect(try store.rowCount(EnergySettingsRecord.self) == 1)
     }
 
+    @Test("a row built from settings keeps every value, a non-default schedule included")
+    func rowFromSettings() throws {
+        let settings = EnergySettings(
+            smoothing: try #require(TrendSmoothing(alpha: 0.2)),
+            rateGoal: E.rate(-0.25),
+            adoptionMode: .weeklyAutoAdopt,
+            schedule: try FormulaActivationSchedule().activating(E.v2, from: E.day(12), calendar: E.calendar)
+        )
+        #expect(try EnergySettingsRecord(from: settings).asEnergySettings() == settings)
+        #expect(try EnergySettingsRecord(from: .defaults).activationScheduleJSON == nil)
+    }
+
     @Test("any finite rate goal is stored: the rails warn, they never block (spec §3)")
     func rateGoalIsNotClamped() throws {
         let store = try makeInMemoryStore()
@@ -103,16 +115,32 @@ struct EnergySettingsDefaultsTests {
     @Test("activation is forward-only; a retroactive activation is refused and stores nothing")
     func activationForwardOnly() throws {
         let store = try makeInMemoryStore()
-        try store.activateFormula(E.v2, from: E.noon(10), calendar: E.calendar)
+        try store.activateFormula(E.v2, from: E.noon(10), today: E.morning(10), calendar: E.calendar)
         let schedule = try store.energySettings().schedule
         #expect(schedule.activations.map(\.effectiveFrom) == [.distantPast, E.day(10)])
         #expect(schedule.formula(on: E.day(9), calendar: E.calendar) == .builtinV1)
         #expect(schedule.formula(on: E.day(10), calendar: E.calendar) == E.v2)
 
         #expect(throws: EnergySettingsError.retroactiveActivation(latestEffectiveFrom: E.day(10))) {
-            try store.activateFormula(.builtinV1, from: E.day(9), calendar: E.calendar)
+            try store.activateFormula(.builtinV1, from: E.day(9), today: E.day(8), calendar: E.calendar)
         }
         #expect(try store.energySettings().schedule == schedule)
+    }
+
+    @Test("an activation before today is refused, even from the default schedule, and stores nothing")
+    func activationBeforeTodayRefused() throws {
+        let store = try makeInMemoryStore()
+        // Spec §3 "Versioning": switching applies forward only. Yesterday is
+        // already rendered history.
+        #expect(throws: EnergySettingsError.activationBeforeToday(today: E.day(25))) {
+            try store.activateFormula(E.v2, from: E.noon(24), today: E.noon(25), calendar: E.calendar)
+        }
+        #expect(try store.energySettings() == .defaults)
+        #expect(try store.rowCount(EnergySettingsRecord.self) == 0)
+
+        // Today itself is forward.
+        try store.activateFormula(E.v2, from: E.morning(25), today: E.noon(25), calendar: E.calendar)
+        #expect(try store.energySettings().schedule.activations.map(\.effectiveFrom) == [.distantPast, E.day(25)])
     }
 
     @Test("marks are idempotent, normalized to the calendar day, and removable")
@@ -122,12 +150,48 @@ struct EnergySettingsDefaultsTests {
         try store.markDidNotTrack(day: E.morning(3), calendar: E.calendar)
         try store.markDidNotTrack(day: E.day(3), calendar: E.calendar)
         try store.markDidNotTrack(day: E.noon(5), calendar: E.calendar)
-        #expect(try store.didNotTrackDays() == [E.day(3), E.day(5)])
+        #expect(try store.didNotTrackDays(calendar: E.calendar) == [E.day(3), E.day(5)])
         #expect(try store.rowCount(DidNotTrackMark.self) == 2)
 
         try store.unmarkDidNotTrack(day: E.morning(3), calendar: E.calendar)
         try store.unmarkDidNotTrack(day: E.day(9), calendar: E.calendar)  // not marked: no effect
-        #expect(try store.didNotTrackDays() == [E.day(5)])
+        #expect(try store.didNotTrackDays(calendar: E.calendar) == [E.day(5)])
+    }
+
+    @Test("a mark is a calendar day: a time-zone change keeps it on that day, and it can still be removed")
+    func marksAcrossTimeZones() throws {
+        let store = try makeInMemoryStore()
+        let east = try calendar(secondsFromGMT: 9 * 3_600)
+        let west = try calendar(secondsFromGMT: -5 * 3_600)
+        // Marked at 10:00 on 8 January in UTC+9 (01:00 UTC that day).
+        let marked = try #require(east.date(from: DateComponents(year: 2026, month: 1, day: 8, hour: 10)))
+        try store.markDidNotTrack(day: marked, calendar: east)
+        let eastDay = east.startOfDay(for: marked)
+        let westDay = try #require(west.date(from: DateComponents(year: 2026, month: 1, day: 8)))
+        #expect(try store.didNotTrackDays(calendar: east) == [eastDay])
+        #expect(try store.didNotTrackDays(calendar: west) == [westDay])
+
+        // The engine reads it on 8 January in the new zone, not on the 7th.
+        let key = try EnergyBinding.key(
+            store: store, today: westDay.addingTimeInterval(12 * 3_600), historyFrom: westDay,
+            calendar: west, weights: { _ in E.weights }
+        )
+        #expect(key.intake.map(\.day) == [westDay])
+        #expect(key.intake.first?.evidence.markedDidNotTrack == true)
+
+        // The same calendar day marked from the other zone is the same row.
+        try store.markDidNotTrack(day: westDay.addingTimeInterval(20 * 3_600), calendar: west)
+        #expect(try store.rowCount(DidNotTrackMark.self) == 1)
+
+        try store.unmarkDidNotTrack(day: westDay.addingTimeInterval(9 * 3_600), calendar: west)
+        #expect(try store.didNotTrackDays(calendar: east).isEmpty)
+        #expect(try store.rowCount(DidNotTrackMark.self) == 0)
+    }
+
+    private func calendar(secondsFromGMT seconds: Int) throws -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: seconds))
+        return calendar
     }
 
     @Test("a damaged settings row is refused on load, not read as plausible settings")
@@ -171,7 +235,7 @@ struct EnergySettingsDefaultsTests {
             try watch.setFormulaActivationSchedule(FormulaActivationSchedule())
         }
         #expect(throws: FreeLunchStoreError.phoneOnlyOperation("activateFormula")) {
-            try watch.activateFormula(E.v2, from: E.day(1), calendar: E.calendar)
+            try watch.activateFormula(E.v2, from: E.day(1), today: E.day(1), calendar: E.calendar)
         }
         #expect(throws: FreeLunchStoreError.phoneOnlyOperation("markDidNotTrack")) {
             try watch.markDidNotTrack(day: E.day(1), calendar: E.calendar)
@@ -179,7 +243,7 @@ struct EnergySettingsDefaultsTests {
         #expect(throws: FreeLunchStoreError.phoneOnlyOperation("unmarkDidNotTrack")) {
             try watch.unmarkDidNotTrack(day: E.day(1), calendar: E.calendar)
         }
-        #expect(throws: FreeLunchStoreError.phoneOnlyOperation("didNotTrackDays")) { try watch.didNotTrackDays() }
+        #expect(throws: FreeLunchStoreError.phoneOnlyOperation("didNotTrackDays")) { try watch.didNotTrackDays(calendar: E.calendar) }
         #expect(try watch.rowCount(EnergySettingsRecord.self) == 0)
         #expect(try watch.rowCount(DidNotTrackMark.self) == 0)
     }
@@ -200,7 +264,7 @@ struct EnergySettingsColdReloadTests {
             try change(store)
         }
         let reopened = try SwiftDataStore.phone(at: .file(url))
-        return (try reopened.energySettings(), try reopened.didNotTrackDays())
+        return (try reopened.energySettings(), try reopened.didNotTrackDays(calendar: E.calendar))
     }
 
     @Test("α survives a cold reload", arguments: [0.05, 0.125, 0.25])
@@ -244,7 +308,7 @@ struct EnergySettingsColdReloadTests {
 
     @Test("an activation made through activateFormula survives a cold reload")
     func activation() throws {
-        let reloaded = try coldReload { try $0.activateFormula(E.v2, from: E.noon(4), calendar: E.calendar) }
+        let reloaded = try coldReload { try $0.activateFormula(E.v2, from: E.noon(4), today: E.day(4), calendar: E.calendar) }
         #expect(reloaded.settings.schedule.latest == E.v2)
         #expect(reloaded.settings.schedule.activations.map(\.effectiveFrom) == [.distantPast, E.day(4)])
     }
@@ -267,7 +331,7 @@ struct EnergySettingsColdReloadTests {
             try store.setTrendAlpha(0.2)
             try store.setRateGoal(kgPerWeek: -0.5)
             try store.setAdoptionMode(.weeklyAutoAdopt)
-            try store.activateFormula(E.v2, from: E.day(10), calendar: E.calendar)
+            try store.activateFormula(E.v2, from: E.day(10), today: E.day(10), calendar: E.calendar)
             try store.markDidNotTrack(day: E.day(3), calendar: E.calendar)
         }
         #expect(reloaded.settings == EnergySettings(

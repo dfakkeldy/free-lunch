@@ -722,7 +722,11 @@ extension FreeLunchSchemaV2 {
     /// completeness"). One row per day.
     @Model
     final class DidNotTrackMark {
-        /// Start of the marked calendar day, in the calendar it was marked in.
+        /// The marked calendar day as a key, not an instant: its Gregorian
+        /// year, month and day at midnight UTC, whatever zone it was marked
+        /// in (EnergySettingsCoding.dayKey). Read back as the start of that
+        /// day in the reader's calendar, so a time-zone change keeps it on
+        /// the same day.
         @Attribute(.unique) var day: Date
 
         init(day: Date) {
