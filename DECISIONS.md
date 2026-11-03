@@ -3,6 +3,27 @@
 Newest first. Product decisions live in the private planning repo; this log
 records the code-level choices made here.
 
+## 2026-11-03 — Next-dose projection and the overdue boundary
+
+- `NextDose.nextDoseAt` adds the active profile's `intervalDays` as calendar
+  days, in the injected `Calendar` and its time zone, to the latest shot's
+  `takenAt`. The latest shot is the one with the greatest `takenAt`, so an
+  edited `takenAt` counts and a late shot moves every later projection.
+  Shots sharing the latest `takenAt` project the same date, so which one is
+  picked does not matter. Across a daylight-saving change the wall-clock time
+  is kept.
+- A projection landing in the skipped spring-forward hour moves forward by
+  that hour (02:30 becomes 03:30), and one landing in the repeated fall-back
+  hour takes the first occurrence. Tests pin both.
+- Overdue begins strictly after the projected instant. At exactly
+  `nextDoseAt` the dose is due today; one second later it is overdue with
+  `daysLate` 0. Overdue does not wait for the end of the calendar day, so
+  the card, the complication and the planner's reminder share one boundary.
+  `daysLate` counts calendar days from the due date to today.
+- No projection without an active profile, for an archived profile, with no
+  shots for that profile, or with a non-positive interval. Shots of other
+  profiles never count.
+
 ## 2026-11-03 — Watch sync spine
 
 The Burly sync pattern, ported into `FreeLunchKit`. Its one schema change
