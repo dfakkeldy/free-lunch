@@ -379,7 +379,7 @@ jobs:
           # even on a WARNING line, on purpose: App Store Connect refused the
           # first fl-m0 upload outright with it (run 41565959182). Other bare
           # ITMS codes are not matched because warnings carry them too.
-          ERR='(^|[^[:alnum:]_])error:|\*\*\* ?error|(^|[^[:alnum:]_])error[[:space:]]+itms-[0-9]+|error domain=|(validation|verif(y|ication)|upload) failed|failed to validate|(^|[^0-9a-f])90683([^0-9a-f]|$)'
+          ERR='(^|[^[:alnum:]_])error:|\*\*\* ?error|(^|[^[:alnum:]_])error[[:space:]]+itms-[0-9]+|error domain=|(validation|verif(y|ication)|upload) failed|failed to validate|(^|[^0-9a-fx])90683([^0-9a-f]|$)'
           WARN='(^|[^[:alnum:]_])warn(ing)?:|\*\*\* ?warning|(^|[^[:alnum:]_])warning[[:space:]]+itms-[0-9]+'
           if (( rc != 0 )) || grep -Eiq "$ERR" "$LOG"; then
             echo "::error::App Store Connect validation failed (altool exit $rc); see validate.log"
