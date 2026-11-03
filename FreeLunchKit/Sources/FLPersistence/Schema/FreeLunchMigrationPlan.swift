@@ -19,14 +19,14 @@ enum FreeLunchMigrationPlan: SchemaMigrationPlan {
         [migrateV1toV2]
     }
 
-    /// V1 → V2 adds two entities, DietarySampleMirror and
-    /// AppliedOutboxRecord, and changes nothing else: every V1 entity keeps
-    /// its attributes, relationships and unique constraints. That is a
-    /// change Core Data's inferred mapping handles on its own (existing rows
-    /// copied as they are, empty new tables), so the stage is lightweight.
-    /// A custom stage would only add willMigrate / didMigrate closures with
-    /// no work to do. Pick custom for a later stage that has to transform or
-    /// backfill rows.
+    /// V1 → V2 adds four entities (DietarySampleMirror, EnergySettingsRecord,
+    /// DidNotTrackMark and AppliedOutboxRecord) and changes nothing else:
+    /// every V1 entity keeps its attributes, relationships and unique
+    /// constraints. That is a change Core Data's inferred mapping handles on
+    /// its own (existing rows copied as they are, empty new tables), so the
+    /// stage is lightweight. A custom stage would only add willMigrate /
+    /// didMigrate closures with no work to do. Pick custom for a later stage
+    /// that has to transform or backfill rows.
     static let migrateV1toV2 = MigrationStage.lightweight(
         fromVersion: FreeLunchSchemaV1.self,
         toVersion: FreeLunchSchemaV2.self

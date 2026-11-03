@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Spec §1 acceptance #6: the versioned schemas are registered on one
 // append-only migration plan (V1, then V2 with the DietarySampleMirror
-// amendment and the sync spine's AppliedOutboxRecord ledger), and every
-// container is instantiated through that plan. The
-// V1 → V2 stage itself is proven on a seeded store in
+// amendment, the energy-settings entities and the sync spine's
+// AppliedOutboxRecord ledger), and every container is instantiated through
+// that plan. The V1 → V2 stage itself is proven on a seeded store in
 // SchemaV1ToV2MigrationTests.
 import FLCore
 import Foundation
@@ -23,8 +23,11 @@ struct SchemaMigrationTests {
         "RecentFoodSnapshot", "WatchOutboxRecord"
     ]
 
-    /// V2: V1 plus the spec §1 amendment and the phone's applied-outbox ledger.
-    var v2Entities: Set<String> { v1Entities.union(["DietarySampleMirror", "AppliedOutboxRecord"]) }
+    /// V2: V1 plus the spec §1 amendment, the energy-settings pair and the
+    /// phone's applied-outbox ledger.
+    var v2Entities: Set<String> {
+        v1Entities.union(["DietarySampleMirror", "EnergySettingsRecord", "DidNotTrackMark", "AppliedOutboxRecord"])
+    }
 
     @Test("FreeLunchSchemaV1 is version 1.0.0 and lists every entity once")
     func schemaV1() {
@@ -34,7 +37,7 @@ struct SchemaMigrationTests {
         #expect(Set(names) == v1Entities)
     }
 
-    @Test("FreeLunchSchemaV2 is version 2.0.0 and lists V1's entities plus its two additions once")
+    @Test("FreeLunchSchemaV2 is version 2.0.0 and lists V1's entities plus its four additions once")
     func schemaV2() {
         #expect(FreeLunchSchemaV2.versionIdentifier == Schema.Version(2, 0, 0))
         let names = FreeLunchSchemaV2.models.map { String(describing: $0) }
@@ -50,6 +53,8 @@ struct SchemaMigrationTests {
         #expect(ObjectIdentifier(FreeLunchSchemaCurrent.self) == ObjectIdentifier(FreeLunchSchemaV2.self))
         #expect(ObjectIdentifier(FoodItem.self) == ObjectIdentifier(FreeLunchSchemaV2.FoodItem.self))
         #expect(ObjectIdentifier(DietarySampleMirror.self) == ObjectIdentifier(FreeLunchSchemaV2.DietarySampleMirror.self))
+        #expect(ObjectIdentifier(EnergySettingsRecord.self) == ObjectIdentifier(FreeLunchSchemaV2.EnergySettingsRecord.self))
+        #expect(ObjectIdentifier(DidNotTrackMark.self) == ObjectIdentifier(FreeLunchSchemaV2.DidNotTrackMark.self))
         #expect(ObjectIdentifier(AppliedOutboxRecord.self) == ObjectIdentifier(FreeLunchSchemaV2.AppliedOutboxRecord.self))
     }
 
