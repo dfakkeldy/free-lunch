@@ -22,7 +22,10 @@
 //   version that introduced it in `since`). Never change a shipped entry's
 //   `key`, and never edit a shipped entry's values in place: devices that
 //   already hold the row would keep the old values, because the loader
-//   never overwrites a stored row. A correction ships as a new key.
+//   never overwrites a stored row. A correction ships as a new key, and
+//   because names are unique (`duplicateName`) it also needs a distinct
+//   name, or the old entry must leave the file. Devices that hold the old
+//   row keep it either way: nothing retires a shipped row yet.
 // - `seedVersion` is the highest `since` in the file.
 // - The values are mutable in place only until a build that contains the
 //   seed ships.

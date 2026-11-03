@@ -13,7 +13,10 @@
 //
 // - **No method deletes a FoodItem or a MedicationProfile.** Foods archive
 //   once referenced; the absent method is the guarantee, because SwiftData
-//   does not enforce `.deny` delete rules.
+//   does not enforce `.deny` delete rules. Catalog foods are archived,
+//   never deleted, even unreferenced ones: `FoodSeedLoader` inserts every
+//   seed id it does not find, so a deleted seeded food would return on the
+//   next launch. A later delete must archive or refuse seeded ids.
 // - **Snapshots are the record.** A catalog item's nutrition is computed
 //   from the food when the item is added, then never rewritten from the
 //   food again; `updateFood` touches the catalog row only.
@@ -49,8 +52,12 @@ public protocol FoodCatalogStore: AnyObject {
     /// Overwrites name, brand, per-100 g nutrition, isLiquid, servings and
     /// origin. Leaves the typeahead fields (store-maintained) and
     /// `archivedAt` (`archiveFood`'s alone) untouched. Never touches any
-    /// MealItem snapshot.
+    /// MealItem snapshot. Throws `seededFoodImmutable`, changing nothing,
+    /// if the stored food or `food` is `.seeded`: a seeded food is edited
+    /// through `editFood`, which forks it.
     func updateFood(_ food: FoodItemData) throws
+    /// Hides a food from typeahead. The catalog's only way to retire a
+    /// food: see "No method deletes a FoodItem" above.
     func archiveFood(id: UUID, at date: Date) throws
 
     /// Inserts every food in one save: all or nothing. Throws `duplicateID`

@@ -2,7 +2,7 @@
 // Spec §11 acceptance #1: the seed loads idempotently; an additive bump adds
 // without touching user-edited rows; editing a seeded food forks it to
 // `.custom` with the seeded original archived. The 10-staples FDC check lives
-// in FLCoreTests (FoodCatalogSeedTests). Every user edit here is synthetic.
+// in FLCoreTests (FoodSeedStaplesTests). Every user edit here is synthetic.
 import FLCore
 import Foundation
 import Testing
@@ -202,6 +202,30 @@ struct FoodSeedLoaderTests {
         #expect(throws: FreeLunchStoreError.duplicateID(FoodSeedIdentity.id(forKey: "beta"))) {
             try store.editFood(edit, forkID: FoodSeedIdentity.id(forKey: "beta"), at: at())
         }
+        #expect(try store.foods(includingArchived: true) == before)
+    }
+
+    @Test("updateFood refuses a seeded row, or making a row seeded, and changes nothing")
+    func updateFoodRefusesSeeded() throws {
+        let store = try makeInMemoryStore()
+        try FoodSeedLoader.apply(seed(v1), to: store)
+        let id = FoodSeedIdentity.id(forKey: "alpha")
+        let custom = FoodItemData(id: uid(810), name: "Soup", per100g: nutrition(40, 2, 5, 1), origin: .custom)
+        try store.createFood(custom)
+        let before = try store.foods(includingArchived: true)
+
+        // The Foods screen must fork a seeded food, never overwrite it.
+        var edit = try #require(try store.food(id: id))
+        edit.name = "Alpha, overwritten"
+        edit.per100g = nutrition(999, 1, 1, 1)
+        #expect(throws: FreeLunchStoreError.seededFoodImmutable(id)) { try store.updateFood(edit) }
+        edit.origin = .custom
+        #expect(throws: FreeLunchStoreError.seededFoodImmutable(id)) { try store.updateFood(edit) }
+
+        var promoted = custom
+        promoted.origin = .seeded
+        #expect(throws: FreeLunchStoreError.seededFoodImmutable(custom.id)) { try store.updateFood(promoted) }
+
         #expect(try store.foods(includingArchived: true) == before)
     }
 

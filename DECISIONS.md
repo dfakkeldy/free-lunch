@@ -26,17 +26,33 @@ records the code-level choices made here.
   id is not in the store". That makes a load idempotent, makes a version bump
   insert only the new keys, and means an archived or forked seeded row (which
   keeps its id) is never resurrected. No schema change and no stored seed
-  version. The namespace UUID and every shipped `key` are permanent.
+  version. The namespace UUID and every shipped `key` are permanent. This
+  rests on catalog foods being archived, never deleted, seeded or not: a
+  deleted seeded row would be inserted again at the next launch, so any
+  later delete must archive or refuse seeded ids.
 - **Additive bumps.** A bump adds entries stamped with the new `since`
   version. A shipped entry is never edited in place: a device that holds the
   row would keep the old value anyway, so a correction ships as a new key.
+  The seed's names are unique, so the corrected entry also needs a distinct
+  name, or the old entry leaves the file. Either way, a device that already
+  holds the old row keeps it visible; hiding it would need a retire list,
+  which does not exist yet.
 - **Fork on edit.** `FoodCatalogStore.editFood` is the edit path for catalog
   foods. A `.seeded` food is never changed: a real edit creates a `.custom`
   food with the edits and archives the original in one save. The fork copies
   `useCount`, `lastUsedAt` and `lastPortionGrams` so a food the user already
   relies on keeps its typeahead rank. An edit that changes nothing creates no
-  fork. `updateFood` is unchanged; edits from the Foods screen should call
-  `editFood`.
+  fork. `updateFood` refuses a `.seeded` row, and refuses to make a row
+  `.seeded`, with `seededFoodImmutable`, so the fork is the only way a
+  seeded food changes. A row is `.seeded` only from creation (the loader).
+- **Loading.** The phone app applies the bundled seed each time it opens
+  its on-disk store; the loader adds only the missing keys. UI tests' in-memory
+  stores skip it so their synthetic catalog stays exact. A failed load shows
+  an error and leaves the log usable.
+- **Liquids.** `isLiquid` only switches the display unit to ml; quantities
+  stay grams. It is set for drinks, milk and cream, whose density is close
+  to 1, and not for oils, syrups or soy sauce, whose grams would read as a
+  visibly wrong ml figure.
 - **Ranking.** Seeded foods are ordinary never-used foods to `Typeahead`, so
   they sit in the prefix and substring tiers below anything with history, and
   the empty query never shows them. The §2 typeahead fixture is extended with

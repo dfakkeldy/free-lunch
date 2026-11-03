@@ -106,6 +106,11 @@ public final class SwiftDataStore: FreeLunchStore {
         guard let stored = try model(FoodItem.self, id: food.id) else {
             throw FreeLunchStoreError.notFound(food.id)
         }
+        // Spec §11: a seeded row only ever changes by forking (`editFood`),
+        // and no row becomes `.seeded` after the fact.
+        guard stored.origin != .seeded, food.origin != .seeded else {
+            throw FreeLunchStoreError.seededFoodImmutable(food.id)
+        }
         let servings = try ServingsCoding.encode(food.servings)
         stored.name = food.name
         stored.brand = food.brand

@@ -204,10 +204,14 @@ struct TypeaheadTests {
 
             // The fixture's frequent foods keep their exact order, at the top.
             #expect(Array(rows.prefix(baselineFrequent.count)) == baselineFrequent)
-            // A seeded food only ever appears in the prefix or substring tier.
-            for row in rows {
+            // A seeded food only ever appears after the frequent rows, in the
+            // prefix tier when its name starts with the query, else in the
+            // substring tier.
+            for (index, row) in rows.enumerated() {
                 if case let .food(food, tier, _) = row, seededIDs.contains(food.id) {
-                    #expect(tier != .frequent)
+                    #expect(index >= baselineFrequent.count)
+                    let folded = food.name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+                    #expect(tier == (folded.hasPrefix(query) ? .prefix : .substring))
                 }
             }
             // The tail actions are still last and still unconditional.
