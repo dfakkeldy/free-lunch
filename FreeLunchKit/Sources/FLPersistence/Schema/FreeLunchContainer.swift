@@ -47,7 +47,7 @@ enum FreeLunchContainer {
         _ kind: FreeLunchStoreKind,
         at location: FreeLunchStoreLocation = .applicationDefault
     ) throws -> ModelContainer {
-        let schema = Schema(versionedSchema: FreeLunchSchemaV1.self)
+        let schema = Schema(versionedSchema: FreeLunchSchemaCurrent.self)
         let configuration: ModelConfiguration
         switch location {
         case .inMemory:
