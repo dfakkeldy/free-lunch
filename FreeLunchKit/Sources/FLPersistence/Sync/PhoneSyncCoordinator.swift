@@ -20,7 +20,9 @@ import Foundation
 /// Must be an idempotent upsert keyed by `item.id` (the shot or meal id, or
 /// the hunger edit's own id): the same item can arrive any number of times,
 /// before or after an earlier copy was applied, and must leave one row.
-/// Throwing withholds the ack, so the watch retries.
+/// Hunger edits share their meal's `subjectID` and a late duplicate can
+/// arrive after a newer edit, so their apply keeps the latest `editedAt`
+/// per meal. Throwing withholds the ack, so the watch retries.
 @MainActor
 public protocol WatchOutboxApplying: AnyObject {
     func upsert(_ item: WatchOutboxItem) throws
