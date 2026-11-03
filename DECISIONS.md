@@ -3,6 +3,20 @@
 Newest first. Product decisions live in the private planning repo; this log
 records the code-level choices made here.
 
+## 2026-11-03 — No tab bar on the plate
+
+The plate screen is pushed from the Timeline tab and hides the tab bar, so
+it keeps the whole screen as it did before the app had tabs. To switch tabs
+from a plate, go back to the timeline first; the draft stays open there.
+
+The scale-session UI tests depend on this. Their `reveal()` helper drags
+from 78% down the plate list's frame, and at the largest accessibility text
+size a visible tab bar puts that point on the list's bottom inset rather
+than on its rows, so the drag scrolls nothing. Showing the tab bar on the
+plate later means starting that drag from the visible part of the list
+instead. `AppShellUITests` checks that the plate has neither the bar nor
+the settings gear.
+
 ## 2026-11-03 — The HealthKit adapter
 
 The first HealthKit code: body weight only, in `FLPersistence/Health/`.
