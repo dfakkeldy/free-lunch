@@ -7,9 +7,12 @@ name: Release
 #   - push of an fl-m*, fl-rc* or v* tag: archive, export, UPLOAD to App
 #     Store Connect (TestFlight).
 #   - workflow_dispatch: DRY RUN. Archive and export an App Store .ipa
-#     with destination "export". It proves the key's role and the cloud
-#     distribution signing, and it NEVER uploads. (GitHub only offers the
-#     manual run once this file is on the default branch.)
+#     with destination "export", then ask App Store Connect to validate
+#     it. It proves the key's role and the cloud distribution signing,
+#     and it runs Apple's upload checks (purpose strings, icons,
+#     entitlements) that a plain export never reaches. It NEVER uploads.
+#     (GitHub only offers the manual run once this file is on the
+#     default branch.)
 #
 # It must never run on pull_request: a fork PR must never be able to see
 # or exfiltrate these secrets. The `on:` block below already excludes
@@ -319,6 +322,80 @@ jobs:
           test -n "$(find "$RUNNER_TEMP/export" -maxdepth 1 -name '*.ipa' -print -quit)"
           echo "Dry run: exported an App Store .ipa; nothing was uploaded." | tee -a "$GITHUB_STEP_SUMMARY"
 
+      # DRY RUN ONLY. Sends the exported .ipa to App Store Connect for
+      # validation: the server-side checks an upload runs before Apple
+      # accepts it, but no build is created. The export above never reaches
+      # those checks, so before this step a missing purpose string
+      # (ITMS-90683) surfaced only on a tag push; the first fl-m0 upload
+      # was refused that way. Apple calls this validation limited, so it
+      # narrows the gap rather than guaranteeing an upload will pass.
+      #
+      # altool finds an API key only as AuthKey_<key ID>.p8 in
+      # $API_PRIVATE_KEYS_DIR, so the step makes a correctly named copy
+      # (removed by its trap, and by the cleanup step's rm -rf if the step
+      # is killed). Classic flag spelling (-f, -t, --apiKey, --apiIssuer),
+      # as fastlane uses with Xcode 26's altool; no --verbose, which can
+      # echo identifiers into this public log. Xcode 26's altool has exited
+      # 0 on server-side errors, so the step fails on error text as well as
+      # on the exit code, and passes only when altool reports success.
+      - name: Validate .ipa with App Store Connect (dry run, no upload)
+        if: github.event_name == 'workflow_dispatch'
+        timeout-minutes: 15
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          umask 077
+          KEYS="$RUNNER_TEMP/asc/private_keys"
+          mkdir -p "$KEYS"
+          trap 'rm -rf "$KEYS"' EXIT
+          cp "$RUNNER_TEMP/asc/asc.p8" "$KEYS/AuthKey_${ASC_KEY_ID}.p8"
+
+          shopt -s nullglob
+          IPAS=("$RUNNER_TEMP"/export/*.ipa)
+          if (( ${#IPAS[@]} != 1 )); then
+            echo "::error::expected exactly one .ipa in \$RUNNER_TEMP/export, found ${#IPAS[@]}"
+            exit 1
+          fi
+
+          LOG="$RUNNER_TEMP/validate.log"
+          scrub() { perl -pe 'for my $v (@ENV{qw(ASC_KEY_ID ASC_ISSUER_ID)}) { s/\Q$v\E/***/g if length($v // "") }'; }
+          # Which altool ran, for reading the log later.
+          { xcrun --find altool; xcrun altool --version || true; } 2>&1 | scrub
+
+          set +e
+          API_PRIVATE_KEYS_DIR="$KEYS" xcrun altool --validate-app \
+            -f "${IPAS[0]}" -t ios \
+            --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID" \
+            2>&1 | scrub | tee "$LOG"
+          rc=${PIPESTATUS[0]}
+          set -e
+
+          # Failure text in the forms altool and Transporter print: a log-level
+          # "ERROR:", "*** Error", "ERROR ITMS-<code>", an NSError dump, the
+          # "VERIFY FAILED" banner, "Failed to validate package", and 90683 as
+          # a whole number (not inside a hex delivery ID). 90683 fails the step
+          # even on a WARNING line, on purpose: App Store Connect refused the
+          # first fl-m0 upload outright with it (run 41565959182). Other bare
+          # ITMS codes are not matched because warnings carry them too.
+          ERR='(^|[^[:alnum:]_])error:|\*\*\* ?error|(^|[^[:alnum:]_])error[[:space:]]+itms-[0-9]+|error domain=|(validation|verif(y|ication)|upload) failed|failed to validate|(^|[^0-9a-fx])90683([^0-9a-f]|$)'
+          WARN='(^|[^[:alnum:]_])warn(ing)?:|\*\*\* ?warning|(^|[^[:alnum:]_])warning[[:space:]]+itms-[0-9]+'
+          if (( rc != 0 )) || grep -Eiq "$ERR" "$LOG"; then
+            echo "::error::App Store Connect validation failed (altool exit $rc); see validate.log"
+            exit 1
+          fi
+          { grep -Ei "$WARN" "$LOG" || true; } | head -n 10 | sed 's/^/::warning::/'
+          # Pass only on positive evidence: Xcode 26.6 prints "VERIFY
+          # SUCCEEDED with no errors" and "No errors validating archive".
+          # If a later Xcode words it differently, this fails loudly rather
+          # than reporting an unconfirmed validation as a pass.
+          if ! grep -Eiq 'verify succeeded|no errors validating|validat[a-z]* succe|succe[a-z]* validat' "$LOG"; then
+            echo "::error::altool printed no recognised success line; read validate.log"
+            exit 1
+          fi
+          echo "Dry run: App Store Connect validated the .ipa; nothing was uploaded." | tee -a "$GITHUB_STEP_SUMMARY"
+
       # THE ONLY UPLOAD. Reachable only from a push of a tag.
       - name: Export and upload to App Store Connect
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
@@ -344,9 +421,9 @@ jobs:
       # same job.
       - name: Remove ASC private key
         if: always()
-        run: rm -f "$RUNNER_TEMP/asc/asc.p8"
+        run: rm -rf "$RUNNER_TEMP/asc"
 
-      # Log tail only, and only the two xcodebuild logs -- never the
+      # Log tail only, and only the xcodebuild and altool logs -- never the
       # export-options plists (no secrets in them) or anything under
       # $RUNNER_TEMP/asc. The real key material (the .p8 file contents)
       # is never printed by any step above -- only referenced by path.
@@ -367,7 +444,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/log-tail"
-          for f in archive export; do
+          for f in archive export validate; do
             if [[ -f "$RUNNER_TEMP/$f.log" ]]; then
               tail -n 500 "$RUNNER_TEMP/$f.log" \
                 | perl -pe 'for my $v (@ENV{qw(ASC_KEY_ID ASC_ISSUER_ID)}) { s/\Q$v\E/***/g if length($v // "") }' \
