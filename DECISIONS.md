@@ -3,6 +3,30 @@
 Newest first. Product decisions live in the private planning repo; this log
 records the code-level choices made here.
 
+## 2026-11-03 — Watch sync spine
+
+The Burly sync pattern, ported into `FreeLunchKit` without new schema.
+
+- **Acks are their own message.** Burly carries acks inside the digest
+  and keeps a retained ack set on the phone. Free Lunch sends an ack per
+  applied outbox record on the ordered channel instead, and acks every
+  delivery, duplicates included. The phone therefore keeps no ledger: a
+  retransmission after a lost ack is applied again as an upsert keyed by
+  the record id and acked again. The watch prunes only on an ack.
+- **The glance lives in the transport.** Next dose and today-remaining
+  ride the latest-wins digest (WatchConnectivity's application context,
+  which the system retains across relaunches), so the watch keeps them in
+  memory and re-reads them on activation. Only the recent foods are stored,
+  as before.
+- **Ranking is the typeahead's.** The digest's foods are
+  `Typeahead.rows(query: "")` taken to 200, not a second sort, so the
+  wrist list cannot drift from the phone's empty-query list.
+- **Placement.** Digest values are `FLCore` DTOs, the builder is in
+  `FLPlate`, and the transport protocol, coordinators, in-memory link and
+  WatchConnectivity adapter are in `FLPersistence`. No dependency edge was
+  added. The adapter compiles only where WatchConnectivity exists; the
+  rules it carries out are tested on the host over the in-memory link.
+
 ## 2026-11-02 — Unit factors, target warnings and the weight gate
 
 Recorded from the first build's pull requests, which flagged these for the
