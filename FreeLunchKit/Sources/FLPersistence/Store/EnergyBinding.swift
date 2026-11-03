@@ -12,7 +12,9 @@
 // Inputs this module does not own are passed in: the weight trend (the
 // weight lane builds it from the corrected weight view with the user's α),
 // the formula activation schedule and rate goal (settings), and the days
-// the user marked "didn't track" (spec §1 has no entity for the mark yet).
+// the user marked "didn't track". The settings and the marks have a
+// persisted home in `EnergySettingsStore`; EnergyRecomputeCoordinator reads
+// them from there and decides when to recompute.
 import FLCore
 import FLEnergyCore
 import Foundation
