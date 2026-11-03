@@ -13,32 +13,33 @@ import SwiftData
 import Testing
 @testable import FLPersistence
 
-/// An in-memory phone canonical store stand-in: an upsert keyed by the
-/// record id, counting every call so tests can tell "applied twice into one
-/// row" from "applied once".
+/// An in-memory phone canonical store stand-in: insert if absent, keyed by
+/// the record id, counting every call so tests can tell "delivered twice
+/// into one row" from "delivered once".
 @MainActor
 final class RecordingApplier: WatchOutboxApplying {
     private(set) var rows: [UUID: WatchOutboxItem] = [:]
-    private(set) var upsertCalls = 0
-    /// Ids whose next upsert fails, once each.
+    private(set) var applyCalls = 0
+    /// Ids whose next apply fails, once each.
     var failNext: Set<UUID> = []
 
     struct Refused: Error, Equatable {
         let id: UUID
     }
 
-    func upsert(_ item: WatchOutboxItem) throws {
-        upsertCalls += 1
+    func apply(_ item: WatchOutboxItem) throws {
+        applyCalls += 1
         if failNext.remove(item.id) != nil {
             throw Refused(id: item.id)
         }
-        rows[item.id] = item
+        if rows[item.id] == nil { rows[item.id] = item }
     }
 }
 
-/// The real phone store as the applier: shots upsert by id through the
-/// public store API, so duplicate deliveries are checked against SwiftData
-/// rows rather than a dictionary.
+/// The real phone store as the applier: shots insert by id through the
+/// public store API, and a row that already exists is left alone, so
+/// duplicate deliveries are checked against SwiftData rows rather than a
+/// dictionary.
 @MainActor
 final class ShotStoreApplier: WatchOutboxApplying {
     let store: SwiftDataStore
@@ -47,15 +48,40 @@ final class ShotStoreApplier: WatchOutboxApplying {
         self.store = store
     }
 
-    func upsert(_ item: WatchOutboxItem) throws {
+    func apply(_ item: WatchOutboxItem) throws {
         guard item.kind == .shot else { return }
         let shot = try JSONDecoder().decode(ShotEventData.self, from: item.payload)
         if try store.shot(id: shot.id) == nil {
             try store.createShot(shot)
-        } else {
-            try store.updateShot(shot)
         }
     }
+}
+
+/// A real watch store that counts digest applies and can refuse them.
+@MainActor
+final class InstrumentedWatchStore: WatchWorkingSetStore {
+    let base: SwiftDataStore
+    private(set) var replaceCalls = 0
+    var failReplace = false
+
+    struct ReplaceRefused: Error, Equatable {}
+
+    init(base: SwiftDataStore) {
+        self.base = base
+    }
+
+    func replaceRecentFoods(_ digest: [RecentFoodSnapshotData]) throws {
+        replaceCalls += 1
+        if failReplace { throw ReplaceRefused() }
+        try base.replaceRecentFoods(digest)
+    }
+
+    func recentFoods() throws -> [RecentFoodSnapshotData] { try base.recentFoods() }
+    func enqueueShot(_ shot: ShotEventData, queuedAt: Date) throws { try base.enqueueShot(shot, queuedAt: queuedAt) }
+    func enqueueMeal(id: UUID, payload: Data, queuedAt: Date) throws { try base.enqueueMeal(id: id, payload: payload, queuedAt: queuedAt) }
+    func enqueueHungerEdit(_ edit: WatchHungerEdit) throws -> UUID { try base.enqueueHungerEdit(edit) }
+    func outbox() throws -> [WatchOutboxItem] { try base.outbox() }
+    func acknowledge(_ outboxIDs: [UUID]) throws { try base.acknowledge(outboxIDs) }
 }
 
 /// Keeps both coordinators alive for a test (transports hold their
@@ -195,6 +221,23 @@ struct WatchSyncSpineTests {
         #expect(h.watch.digest?.generatedAt == at(hour: 2))
     }
 
+    @Test("the same digest delivered again, as at launch, does not rewrite the rows")
+    func digestRepeatIsSkipped() throws {
+        let link = InMemoryWatchSyncLink()
+        let store = InstrumentedWatchStore(base: try SwiftDataStore.watch(at: .inMemory))
+        let watch = WatchSyncCoordinator(store: store, transport: link.watch)
+        let digest = WatchDigestData(generatedAt: at(hour: 1), recentFoods: (1...5).map(food))
+        try link.phone.publishDigest(digest)
+        link.deliverDigest(to: .watch)
+        #expect(store.replaceCalls == 1)
+
+        // Activation re-applies the retained copy of the digest already shown.
+        try watch.activate()
+        try watch.receive(digest: digest)
+        #expect(store.replaceCalls == 1)
+        #expect(try store.recentFoods() == (1...5).map(food))
+    }
+
     // MARK: Convergence
 
     @Test("dropped outbox transfers are resent on the next activation")
@@ -214,7 +257,7 @@ struct WatchSyncSpineTests {
         #expect(try h.watchStore.outbox().isEmpty)
     }
 
-    @Test("lost acks leave records queued; the retry reapplies as an upsert and prunes")
+    @Test("lost acks leave records queued; the retry is a no-op apply, acked and pruned")
     func droppedAcks() throws {
         let h = try SyncHarness()
         let ids = try enqueueThree(h.watchStore)
@@ -227,7 +270,7 @@ struct WatchSyncSpineTests {
 
         try h.watch.activate()
         h.link.pump()
-        #expect(h.recorder.upsertCalls == 6)
+        #expect(h.recorder.applyCalls == 6)
         #expect(h.recorder.rows.count == 3)
         #expect(try h.watchStore.outbox().isEmpty)
     }
@@ -242,7 +285,7 @@ struct WatchSyncSpineTests {
         h.link.duplicateNext(to: .watch, count: 6)
         h.link.pump()
 
-        #expect(h.recorder.upsertCalls == 6)
+        #expect(h.recorder.applyCalls == 6)
         #expect(Set(h.recorder.rows.keys) == Set(ids))
         #expect(try h.watchStore.outbox().isEmpty)
         #expect(h.link.receiveErrors.isEmpty)
@@ -264,6 +307,55 @@ struct WatchSyncSpineTests {
         h.link.pump()
         #expect(Set(h.recorder.rows.keys) == Set(ids))
         #expect(try h.watchStore.outbox().isEmpty)
+    }
+
+    @Test("a failing digest apply on activation still resends the outbox, then reports the error")
+    func activationDigestFailure() throws {
+        let link = InMemoryWatchSyncLink()
+        let store = InstrumentedWatchStore(base: try SwiftDataStore.watch(at: .inMemory))
+        let applier = RecordingApplier()
+        let phone = PhoneSyncCoordinator(transport: link.phone, applier: applier)
+        try phone.publish(WatchDigestData(generatedAt: at(hour: 1), recentFoods: (1...3).map(food)))
+        link.deliverDigest(to: .watch)
+
+        // A relaunch: the retained digest is re-applied, and that apply fails.
+        let ids = try enqueueThree(store.base)
+        let watch = WatchSyncCoordinator(store: store, transport: link.watch)
+        store.failReplace = true
+        #expect(throws: InstrumentedWatchStore.ReplaceRefused()) {
+            try watch.activate()
+        }
+        #expect(link.watch.queuedOutboxIDs == Set(ids))
+
+        link.pump()
+        #expect(Set(applier.rows.keys) == Set(ids))
+        #expect(try store.outbox().isEmpty)
+    }
+
+    @Test("a stale resend after a phone-side edit leaves the edit in place and still prunes")
+    func staleResendAfterPhoneEdit() throws {
+        let phoneStore = try makeInMemoryStore()
+        try phoneStore.createMedicationProfile(MedicationProfileData(id: medicationID, known: .tirzepatide))
+        let h = SyncHarness(watchStore: try SwiftDataStore.watch(at: .inMemory), applier: ShotStoreApplier(store: phoneStore))
+        let original = shot(400)
+        try h.watchStore.enqueueShot(original, queuedAt: at(hour: 1))
+        try h.watch.sendOutbox()
+
+        // The phone applies the shot; its ack waits for a watch app that
+        // is not running. Meanwhile the shot is edited on the phone.
+        h.link.deliverNext(to: .phone)
+        var edited = original
+        edited.setDose(Milligrams(5))
+        try phoneStore.updateShot(edited)
+
+        // The watch relaunches and resends before it reads the pending ack.
+        h.relaunchWatch()
+        try h.watch.activate()
+        h.link.pump()
+
+        #expect(try phoneStore.shots() == [edited])
+        #expect(try h.watchStore.outbox().isEmpty)
+        #expect(h.link.receiveErrors.isEmpty)
     }
 
     @Test("killed midway: rebuilt sync objects over the same stores converge with no duplicates and no losses")
@@ -325,7 +417,7 @@ struct WatchSyncSpineTests {
         // The phone starts later and catches up.
         h.launchPhone()
         h.link.pump()
-        #expect(h.recorder.upsertCalls == 3)
+        #expect(h.recorder.applyCalls == 3)
         #expect(Set(h.recorder.rows.keys) == Set(ids))
         #expect(try h.watchStore.outbox().isEmpty)
     }
@@ -342,7 +434,7 @@ struct WatchSyncSpineTests {
         #expect(h.link.queuedCount(to: .phone) == 1)
         h.link.pump()
         #expect(h.recorder.rows.count == 4)
-        #expect(h.recorder.upsertCalls == 4)
+        #expect(h.recorder.applyCalls == 4)
         #expect(try h.watchStore.outbox().isEmpty)
     }
 

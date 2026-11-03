@@ -10,14 +10,40 @@ The Burly sync pattern, ported into `FreeLunchKit` without new schema.
 - **Acks are their own message.** Burly carries acks inside the digest
   and keeps a retained ack set on the phone. Free Lunch sends an ack per
   applied outbox record on the ordered channel instead, and acks every
-  delivery, duplicates included. The phone therefore keeps no ledger: a
-  retransmission after a lost ack is applied again as an upsert keyed by
-  the record id and acked again. The watch prunes only on an ack.
+  delivery, duplicates included. The sync layer keeps no ledger, so a
+  retransmission is handed to the phone's applier again and acked again.
+  The watch prunes only on an ack.
+- **First copy wins on the phone.** Retransmissions are routine: a
+  relaunched watch resends its outbox on activation before it reads an ack
+  still waiting for it. So the applier inserts a shot or meal only when no
+  row with its id exists and otherwise does nothing, which keeps a phone
+  edit made in between. Two gaps are left to the phone-side applier, and
+  closing either needs stored state the current schema does not have: a
+  row deleted on the phone in that window comes back from a late copy
+  (needs a tombstone or applied-id set), and hunger edits must keep the
+  latest `editedAt` per meal, which MealEntry does not store. "No new
+  schema" holds for this port only because the applier is not written yet.
+- **Outbox records are immutable once queued.** An ack names an id, not a
+  version, and a queued transfer cannot be recalled. A coalesced append
+  or an undo after a record was sent has to be a new record with its own
+  id; editing the queued one in place would let the old copy's ack prune
+  the new one.
+- **Every activation resends the whole unacked outbox.** WatchConnectivity
+  drops a transfer from its outstanding list once the other device has it,
+  even if the app there has not consumed it, so a watch that comes forward
+  several times before the phone app runs queues several copies. First copy
+  wins makes them harmless; a resend backoff can come later if the transfer
+  budget calls for it.
 - **The glance lives in the transport.** Next dose and today-remaining
   ride the latest-wins digest (WatchConnectivity's application context,
   which the system retains across relaunches), so the watch keeps them in
   memory and re-reads them on activation. Only the recent foods are stored,
   as before.
+- **No weight glance yet.** The digest carries recent foods, the next
+  dose and today's remaining. The watch root's read-only weight glance
+  (trend and last weigh-in) also reads from the digest, so the watch root
+  work adds it as an optional field. An older peer ignores the new key and
+  a newer one reads a missing key as nil, so the codec format stays 1.
 - **Ranking is the typeahead's.** The digest's foods are
   `Typeahead.rows(query: "")` taken to 200, not a second sort, so the
   wrist list cannot drift from the phone's empty-query list.

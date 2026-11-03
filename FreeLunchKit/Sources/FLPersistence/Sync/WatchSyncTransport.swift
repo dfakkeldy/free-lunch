@@ -11,7 +11,8 @@ import Foundation
 @MainActor
 public protocol WatchSyncTransport: AnyObject {
     /// Where inbound traffic goes. A coordinator installs itself; a newer
-    /// coordinator (after a relaunch) replaces the older one.
+    /// coordinator (after a relaunch) replaces the older one. Messages that
+    /// arrive while it is nil wait for one, in order.
     var receiver: (any WatchSyncReceiving)? { get set }
 
     /// Queues `message` on the ordered channel (WatchConnectivity's user

@@ -11,7 +11,14 @@
 //
 // Delegate callbacks arrive on a system queue. Each one copies out the
 // Sendable bytes it needs, then hops to the main actor, where the stores
-// live.
+// live, through the main queue: its FIFO order keeps user info transfers in
+// the order WatchConnectivity delivered them, which separate `Task` hops
+// would not promise.
+//
+// A message that arrives before a receiver is installed (the system can
+// launch the app to deliver one) is held and handed over, in order, when
+// one is. A digest needs no such buffer: the application context retains it
+// and `WatchSyncCoordinator.activate()` re-applies it.
 #if canImport(WatchConnectivity)
 import FLCore
 import Foundation
@@ -19,7 +26,9 @@ import Foundation
 
 @MainActor
 public final class WCSessionWatchSyncTransport: NSObject, WatchSyncTransport {
-    public weak var receiver: (any WatchSyncReceiving)?
+    public weak var receiver: (any WatchSyncReceiving)? {
+        didSet { deliverHeldMessages() }
+    }
 
     /// Runs on the main actor after each successful activation: the watch
     /// side's retry moment (`WatchSyncCoordinator.activate()`).
@@ -30,6 +39,8 @@ public final class WCSessionWatchSyncTransport: NSObject, WatchSyncTransport {
     public private(set) var lastReceiveError: (any Error)?
 
     private let session: WCSession
+    /// Inbound messages that arrived while no receiver was installed.
+    private var heldMessages: [Data] = []
 
     public init(session: WCSession = .default) {
         self.session = session
@@ -67,10 +78,20 @@ public final class WCSessionWatchSyncTransport: NSObject, WatchSyncTransport {
     }
 
     fileprivate func deliver(message data: Data) {
+        guard let receiver else {
+            heldMessages.append(data)
+            return
+        }
         do {
-            try receiver?.receive(WatchSyncCodec.decodeMessage(data))
+            try receiver.receive(WatchSyncCodec.decodeMessage(data))
         } catch {
             lastReceiveError = error
+        }
+    }
+
+    private func deliverHeldMessages() {
+        while receiver != nil, !heldMessages.isEmpty {
+            deliver(message: heldMessages.removeFirst())
         }
     }
 
@@ -96,15 +117,15 @@ extension WCSessionWatchSyncTransport: WCSessionDelegate {
         error: (any Error)?
     ) {
         guard activationState == .activated else { return }
-        Task { @MainActor [weak self] in
-            self?.onActivated?()
+        DispatchQueue.main.async { [weak self] in
+            MainActor.assumeIsolated { self?.onActivated?() }
         }
     }
 
     nonisolated public func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any]) {
         guard let data = userInfo[Keys.message] as? Data else { return }
-        Task { @MainActor [weak self] in
-            self?.deliver(message: data)
+        DispatchQueue.main.async { [weak self] in
+            MainActor.assumeIsolated { self?.deliver(message: data) }
         }
     }
 
@@ -113,8 +134,8 @@ extension WCSessionWatchSyncTransport: WCSessionDelegate {
         didReceiveApplicationContext applicationContext: [String: Any]
     ) {
         guard let data = applicationContext[Keys.digest] as? Data else { return }
-        Task { @MainActor [weak self] in
-            self?.deliver(digest: data)
+        DispatchQueue.main.async { [weak self] in
+            MainActor.assumeIsolated { self?.deliver(digest: data) }
         }
     }
 

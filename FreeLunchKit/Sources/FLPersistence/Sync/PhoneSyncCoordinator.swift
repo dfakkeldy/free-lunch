@@ -2,11 +2,13 @@
 // The phone half of the sync spine (spec §9; the phone is the canonical
 // store and the sole HealthKit writer).
 //
-// - Outbox in: each record is handed to a `WatchOutboxApplying` upsert
-//   keyed by the record's stable id, then acked. Every delivery is acked,
-//   duplicates included, so the phone keeps no ledger of what it has seen:
-//   a retransmission after a lost ack is applied again (a no-op, because
-//   the apply is an upsert) and acked again, and the watch prunes it.
+// - Outbox in: each record is handed to `WatchOutboxApplying`, then acked.
+//   Every delivery is acked, duplicates included, so the coordinator keeps
+//   no ledger of what it has seen: a retransmission is handed over again
+//   and acked again, and the watch prunes it. Retransmissions are routine,
+//   not a rare fault: a relaunched watch resends its outbox on activation,
+//   before it reads an ack that is still waiting, so a copy can arrive
+//   long after the phone applied the first one and the user edited it.
 // - A failed apply sends no ack. The record stays in the watch outbox and
 //   arrives again on the watch's next activation.
 // - Digest out: the caller builds the digest (FLPlate's
@@ -17,15 +19,24 @@ import Foundation
 
 /// Applies one watch-created record to the phone's canonical store.
 ///
-/// Must be an idempotent upsert keyed by `item.id` (the shot or meal id, or
-/// the hunger edit's own id): the same item can arrive any number of times,
-/// before or after an earlier copy was applied, and must leave one row.
-/// Hunger edits share their meal's `subjectID` and a late duplicate can
-/// arrive after a newer edit, so their apply keeps the latest `editedAt`
-/// per meal. Throwing withholds the ack, so the watch retries.
+/// The same item can arrive any number of times, before or after an earlier
+/// copy was applied and after the phone has since edited the row, so the
+/// first copy wins:
+/// - A shot or meal inserts only when no row with `item.id` exists; when one
+///   does, the apply is a no-op. A later copy never overwrites a phone-side
+///   edit. (A row the phone has since deleted is not covered: with no record
+///   of the deletion, a late copy inserts it again. Closing that needs a
+///   stored tombstone or applied-id set, which this layer does not keep.)
+/// - Hunger edits share their meal's `subjectID`, each with its own `id`.
+///   An older edit can arrive after a newer one (a lost transfer resent
+///   later, or a duplicate), so the apply keeps the latest `editedAt` per
+///   meal. MealEntry stores no edit time for its hunger value, so the
+///   applier needs one stored alongside it to honour this.
+///
+/// Throwing withholds the ack, so the watch retries.
 @MainActor
 public protocol WatchOutboxApplying: AnyObject {
-    func upsert(_ item: WatchOutboxItem) throws
+    func apply(_ item: WatchOutboxItem) throws
 }
 
 @MainActor
@@ -47,7 +58,7 @@ public final class PhoneSyncCoordinator: WatchSyncReceiving {
     public func receive(_ message: WatchSyncMessage) throws {
         switch message {
         case let .outbox(item):
-            try applier.upsert(item)
+            try applier.apply(item)
             try transport.send(.ack([item.id]))
         case .ack:
             // Watch-bound; the phone has no outbox to prune.

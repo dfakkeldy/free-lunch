@@ -8,11 +8,17 @@
 // - Prune on ack only: an ack removes exactly the named records. Acks for
 //   records already pruned (a duplicate, or a re-ack after a retry) are
 //   no-ops.
+// - Outbox records are immutable once queued. An ack names an id, not a
+//   version, and a record already handed to the transport cannot be
+//   recalled, so a later change to it (a coalesced append, an undo) must
+//   be a new record with its own id. Editing a queued record in place
+//   would let the ack for the old copy prune the new one.
 // - Digest down: the newest digest replaces the RecentFoodSnapshot rows
 //   (the store caps them at 200 in the phone's order) and becomes the
 //   in-memory next-dose and today-remaining glance. An older digest than
-//   the one shown is ignored. On activation the transport's retained
-//   digest is re-applied, which is how the glance survives a relaunch.
+//   the one shown, or the same one again, is ignored. On activation the
+//   transport's retained digest is re-applied, which is how the glance
+//   survives a relaunch.
 import FLCore
 import Foundation
 
@@ -32,11 +38,19 @@ public final class WatchSyncCoordinator: WatchSyncReceiving {
 
     /// The retry moment: app launch, WatchConnectivity activation, return
     /// to foreground. Applies the retained digest, then resends the outbox.
+    /// The two are independent: a failed digest apply still resends, and
+    /// its error is rethrown afterwards.
     public func activate() throws {
+        var digestError: (any Error)?
         if let retained = transport.receivedDigest {
-            try receive(digest: retained)
+            do {
+                try receive(digest: retained)
+            } catch {
+                digestError = error
+            }
         }
         try sendOutbox()
+        if let digestError { throw digestError }
     }
 
     /// Sends every unacknowledged record not already queued in the
@@ -64,7 +78,7 @@ public final class WatchSyncCoordinator: WatchSyncReceiving {
     }
 
     public func receive(digest incoming: WatchDigestData) throws {
-        if let digest, incoming.generatedAt < digest.generatedAt { return }
+        if let digest, incoming.generatedAt < digest.generatedAt || incoming == digest { return }
         try store.replaceRecentFoods(incoming.recentFoods)
         digest = incoming
     }
