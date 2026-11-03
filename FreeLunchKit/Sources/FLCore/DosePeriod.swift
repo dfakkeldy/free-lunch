@@ -24,6 +24,12 @@
 //   FLCore has no trend model (that is spec §3), so the caller supplies the
 //   trend lookup; nil when either boundary has no trend value.
 // - weeklyRateKg: totalChangeKg / (durationDays / 7).
+//
+// Membership (`contains`) follows the same boundaries, by instant, never by
+// calendar day: [start, end) for a closed period, [start, end] for the open
+// one. A record stamped exactly at a closed period's end belongs to the next
+// period, and one stamped just before it, even on the same calendar day,
+// belongs to this one.
 import Foundation
 
 public struct DosePeriod: Sendable, Hashable {
@@ -64,6 +70,14 @@ public struct DosePeriod: Sendable, Hashable {
     public var weeklyRateKg: Double? {
         guard let change = totalChangeKg, durationDays > 0 else { return nil }
         return change / (durationDays / 7)
+    }
+
+    /// Whether `instant` falls in this period: half-open `[start, end)` when
+    /// closed, closed `[start, end]` when open. The open period's end is
+    /// `asOf`, or its last shot when that is later, and is included.
+    public func contains(_ instant: Date) -> Bool {
+        guard instant >= start else { return false }
+        return isOpen ? instant <= end : instant < end
     }
 }
 
