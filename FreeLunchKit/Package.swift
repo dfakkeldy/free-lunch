@@ -25,7 +25,9 @@ let package = Package(
     ],
     targets: [
         // §1 domain value types, enums and canonical units. No SwiftData.
-        .target(name: "FLCore"),
+        // The catalog seed JSON is product data, declared as a resource here
+        // rather than as a target of its own.
+        .target(name: "FLCore", resources: [.process("Resources/food-seed.json")]),
         // §3 energy-balance engine. Deliberately dependency-free: it speaks
         // dates, kilograms and kcal only, so it can be verified in isolation.
         .target(name: "FLEnergyCore"),

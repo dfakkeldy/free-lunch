@@ -45,9 +45,8 @@ final class PhoneAppModel {
 
     init(arguments: [String] = ProcessInfo.processInfo.arguments, calendar: Calendar = .current) {
         self.calendar = calendar
-        let location: FreeLunchStoreLocation = arguments.contains(LaunchArgument.inMemoryStore)
-            ? .inMemory
-            : .applicationDefault
+        let inMemory = arguments.contains(LaunchArgument.inMemoryStore)
+        let location: FreeLunchStoreLocation = inMemory ? .inMemory : .applicationDefault
         do {
             let store = try SwiftDataStore.phone(at: location)
             self.store = store
@@ -57,6 +56,17 @@ final class PhoneAppModel {
             service = nil
             errorMessage = "Couldn't open the food log: \(error)"
             return
+        }
+        // The bundled food seed (spec §11), on every launch: the loader adds
+        // only the entries the store lacks. UI tests' in-memory stores skip
+        // it so their synthetic catalog stays exact. A failed load leaves
+        // the log usable, without the seed.
+        if !inMemory, let store {
+            do {
+                try FoodSeedLoader.applyBundled(to: store)
+            } catch {
+                errorMessage = "Couldn't load the built-in foods: \(error)"
+            }
         }
         if arguments.contains(LaunchArgument.seedDraft) {
             seedSyntheticDraft()

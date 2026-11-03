@@ -12,7 +12,7 @@ public enum WatchOutboxKind: String, Sendable, Hashable, Codable, CaseIterable {
 }
 
 /// A watch-created record that remains local until its phone acknowledgement.
-public struct WatchOutboxItem: Sendable, Hashable, Identifiable {
+public struct WatchOutboxItem: Sendable, Hashable, Codable, Identifiable {
     /// The acknowledgement handle, distinct from `subjectID` for hunger edits.
     public let id: UUID
     public let kind: WatchOutboxKind
@@ -31,7 +31,7 @@ public struct WatchOutboxItem: Sendable, Hashable, Identifiable {
 
 public enum WatchWorkingSet {
     /// Maximum number of phone-ranked typeahead records retained on watch.
-    public static let recentFoodCap = 200
+    public static let recentFoodCap = WatchDigestData.recentFoodCap
 }
 
 /// A queued edit to a meal's optional pre-meal hunger value.
