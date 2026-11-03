@@ -73,8 +73,8 @@ public struct DosePeriod: Sendable, Hashable {
     }
 
     /// Whether `instant` falls in this period: half-open `[start, end)` when
-    /// closed, closed `[start, end]` when open (the open period includes
-    /// `asOf`, its end).
+    /// closed, closed `[start, end]` when open. The open period's end is
+    /// `asOf`, or its last shot when that is later, and is included.
     public func contains(_ instant: Date) -> Bool {
         guard instant >= start else { return false }
         return isOpen ? instant <= end : instant < end

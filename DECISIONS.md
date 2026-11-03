@@ -10,10 +10,16 @@ records the code-level choices made here.
   for the open one (`DosePeriod.contains`). On the day a strength changes, a
   meal or side effect stamped before the shot is in the old period; one at or
   after it is in the new period. Records before the first shot or after
-  `asOf` are in no period.
+  the open period's end are in no period. That end is `asOf`, or the last
+  shot when it is stamped later, so membership always matches the span the
+  duration, coverage and trend are computed over.
 - **Hunger**: unit is a logged meal placed by `loggedAt`. No hunger is
   unknown and counted as such, never imputed; the mean is nil with no
   ratings. An out-of-range stored value is treated as unknown, not rated.
+  A rating on a draft (including one a watch hunger quick-log created) is
+  not counted until the draft is logged; whether unlogged watch ratings
+  should count is an open product question. Logged meals imported from
+  Apple Health have no rating and count as unknown.
 - **Side effects** are counted by `SideEffectType` as stored; `.other` is
   keyed by its exact text. No correlation output anywhere.
 - **Trend at a boundary** is the §3 trend held from the latest weigh-in at or

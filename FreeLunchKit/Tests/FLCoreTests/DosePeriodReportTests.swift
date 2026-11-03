@@ -46,6 +46,8 @@ import Testing
 private typealias F = DosePeriodFixtures
 private typealias R = DosePeriodReportFixtures
 
+// Matches boundaries by exact day offset, so every fixture boundary must be
+// a whole number of days from the anchor; any other date gets nil.
 private func heldTrend(_ date: Date) -> Double? {
     switch date.timeIntervalSince(F.anchor) / 86_400 {
     case 0: 80
@@ -171,7 +173,7 @@ struct DosePeriodReportTests {
         #expect(effects.map(\.totalCount) == [3, 2, 4])
     }
 
-    @Test("records before the first shot or after asOf are in no period")
+    @Test("records before the first shot or after the open period's end are in no period")
     func outsidePeriods() {
         let reports = goldenReports()
         let rated = reports.map(\.hunger.mealCount).reduce(0, +)
@@ -194,6 +196,34 @@ struct DosePeriodReportTests {
         #expect(!periods[0].contains(F.day(0).addingTimeInterval(-1)))
         #expect(periods[2].contains(F.day(24)))
         #expect(!periods[2].contains(F.day(24).addingTimeInterval(1)))
+    }
+
+    @Test("a last shot stamped after asOf extends the open period, and its records count")
+    func lastShotAfterAsOf() {
+        // A same-strength shot at day 26 joins the open period, whose end
+        // becomes day 26, not asOf (day 24).
+        let shots = R.shots + [
+            ShotEventData(id: F.uuid(6), takenAt: F.day(26), dose: Milligrams(1.0), medicationID: F.medicationID)
+        ]
+        let meals = [F.day(25), F.day(26), F.day(26).addingTimeInterval(1)].enumerated().map { n, at in
+            MealEntryData(id: F.uuid(300 + n), state: .logged, createdAt: at, loggedAt: at, hunger: 3, source: .phone)
+        }
+        let effects = [F.day(25), F.day(26), F.day(26).addingTimeInterval(1)].enumerated().map { n, at in
+            SideEffectEntryData(id: F.uuid(400 + n), occurredAt: at, type: .nausea, severity: 1)
+        }
+        let reports = DosePeriodReports.reports(
+            shots: shots, profiles: [F.profile], meals: meals, sideEffects: effects, asOf: R.asOf,
+            trendKg: { _ in nil }
+        )
+        let open = reports[2]
+        #expect(reports.count == 3)
+        #expect(open.period.isOpen)
+        #expect(open.period.end == F.day(26))
+        #expect(open.period.contains(R.asOf))
+        // Day 25 and day 26 count; day 26 plus one second is past the end.
+        #expect(open.hunger.mealCount == 2)
+        #expect(open.sideEffects.countsByType == [.nausea: 2])
+        #expect(reports[0].hunger.mealCount + reports[1].hunger.mealCount == 0)
     }
 
     @Test("no shots, no reports")

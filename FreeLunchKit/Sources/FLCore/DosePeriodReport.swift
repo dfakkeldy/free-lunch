@@ -14,11 +14,18 @@
 //   stamped before the shot is in the old period and one at or after it is
 //   in the new period. A record stamped exactly at the shot belongs to the
 //   new period; exactly at `asOf`, to the open period.
-// - Records before the first shot or after `asOf` are in no period.
+// - Records before the first shot or after the open period's end are in no
+//   period. That end is `asOf`, or the last shot when it is stamped later
+//   (a future-dated shot): a record between `asOf` and that shot is counted
+//   in the open period, so the counts always cover the period's own span.
 //
 // Hunger (spec §2 "Hunger", §5):
 // - The unit is a logged meal (`state == .logged`, placed by `loggedAt`).
-//   Drafts have no logged time and are never counted.
+//   Drafts have no logged time and are never counted. That includes a draft
+//   a watch hunger quick-log created: its rating is not in any period until
+//   the draft is logged on the phone.
+// - A logged meal imported from Apple Health (`.healthKitImport`) carries no
+//   rating, so it counts as unknown like any other unrated meal.
 // - A meal with no hunger is unknown and is counted as unknown, never
 //   imputed: it adds nothing to the mean.
 // - A stored value outside `DomainScale.hunger` cannot be a rating; the
