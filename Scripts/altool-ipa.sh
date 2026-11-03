@@ -7,9 +7,9 @@
 # altool: `validate` runs the server-side checks an upload gets but creates
 # no build (the release dry run); `upload` uploads it for TestFlight.
 # release.yml calls only `validate` so far: a tag push still exports and
-# uploads in one `xcodebuild -exportArchive` step. This is a copy of Burly's
-# Scripts/altool-ipa.sh, whose tag push does use `upload`; keep the two
-# copies' checks the same.
+# uploads in one `xcodebuild -exportArchive` step. This began as a copy of
+# Burly's Scripts/altool-ipa.sh, whose tag push does use `upload`; keep the
+# two copies' checks the same.
 #
 # Needs ASC_KEY_ID, ASC_ISSUER_ID and ASC_KEY_PATH (the .p8 on disk) in the
 # environment. altool finds an API key only as AuthKey_<key ID>.p8 in
@@ -98,10 +98,13 @@ WARN='(^|[^[:alnum:]_])warn(ing)?:|\*\*\* ?warning|(^|[^[:alnum:]_])warning[[:sp
 # Anchored at both ends; the only prefix allowed is altool's own timestamp.
 RETRY='^([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9:.]+ )?ERROR: \[[A-Za-z0-9._]+\] [^:]+: received status code 5[0-9]{2}; [A-Za-z ]+\. \([A-Z0-9]+\) \(5[0-9]{2}\)[[:space:]]*$'
 VERDICT_CODE='itms-[0-9]+|90683|fail'
+# altool's success banners, each a whole line of its own (as in every
+# passing log so far), so the phrase quoted inside other text, such as
+# "did not: VERIFY SUCCEEDED", is not a success.
 if [[ "$MODE" == validate ]]; then
-  SUCCESS='verify succeeded|no errors validating'
+  SUCCESS="^verify succeeded with no errors[[:space:]]*\$|^no errors validating archive at '"
 else
-  SUCCESS='upload succeeded|no errors uploading'
+  SUCCESS="^upload succeeded with no errors[[:space:]]*\$|^no errors uploading archive at '"
 fi
 error_lines="$(grep -Ei "$ERR" "$LOG" || true)"
 # A retry notice has exactly that shape and no ITMS code or "fail" in it.
