@@ -527,3 +527,37 @@ struct ExpenditureInputTests {
         #expect(estimate.windowLastDay == expectedLast)
     }
 }
+
+// MARK: - Weight gate, both-ends reading (golden)
+
+struct ExpenditureWeightGateGoldenTests {
+    @Test("fresh user, complete logging and a weigh-in every morning from day 0: first .tracking day is day 27")
+    func freshUserFirstTrackingDay() {
+        // Why day 27 follows from the both-ends rule: the trend is undefined
+        // until the sixth daily weigh-in (day 5, 07:00: at least 3 samples
+        // and a 5-day span). Δtrend needs the trend just before the window's
+        // first day, so that first day, today − 21, must start after day 5's
+        // weigh-in: today − 21 ≥ 6, today ≥ 27. The end of the window is
+        // never the binding side here. On day 26 the window starts at day 5
+        // midnight, before any defined trend, so the estimator pauses with
+        // .insufficientWeight although the window holds 21 complete intake
+        // days (gate: 14) and the end-of-window weight check both pass.
+        let intake = (0...40).map { logged($0, 2_000) }
+        let weights = weighIns((0...40).map { ($0, 80.0) })
+
+        #expect(evaluate(on: 26, intake, weights) == .paused(.insufficientWeight))
+        guard case .tracking(let estimate) = evaluate(on: 27, intake, weights) else {
+            Issue.record("expected .tracking on day 27")
+            return
+        }
+        expectClose(estimate.kcalPerDay, 2_000)
+        #expect(estimate.completeIntakeDays == 21)
+
+        // Nothing earlier tracks either.
+        for offset in 0...26 {
+            if case .tracking = evaluate(on: offset, intake, weights) {
+                Issue.record("day \(offset) must not be tracking")
+            }
+        }
+    }
+}
