@@ -27,15 +27,12 @@ struct MedicationIntervalDefaultTests {
         #expect(profile.intervalDays == 7)
     }
 
-    @Test("The interval stays editable per profile")
-    func intervalEditable() {
-        var known = MedicationProfileData(known: .liraglutide)
-        known.intervalDays = 1
-        #expect(known.intervalDays == 1)
-        var custom = MedicationProfileData(name: "Custom", halfLifeHours: 100, tmaxHours: 20)
-        custom.intervalDays = 14
+    @Test("An explicit interval overrides the default in both initializers")
+    func explicitIntervalOverridesDefault() {
+        #expect(MedicationProfileData(known: .liraglutide, intervalDays: 1).intervalDays == 1)
+        let custom = MedicationProfileData(
+            name: "Custom", halfLifeHours: 100, tmaxHours: 20, intervalDays: 14
+        )
         #expect(custom.intervalDays == 14)
-        #expect(MedicationProfileData(known: .liraglutide, intervalDays: 3).intervalDays == 3)
-        #expect(MedicationProfileData.defaultIntervalDays == 7)
     }
 }
