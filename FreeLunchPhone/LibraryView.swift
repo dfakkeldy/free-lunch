@@ -12,8 +12,6 @@ enum LibrarySection: String, CaseIterable, Identifiable, Hashable {
 
     var id: String { rawValue }
 
-    var title: String { rawValue }
-
     var systemImage: String {
         switch self {
         case .foods: "fork.knife"
@@ -40,7 +38,7 @@ struct LibraryView: View {
                 NavigationLink {
                     LibrarySectionPlaceholder(section: section)
                 } label: {
-                    Label(section.title, systemImage: section.systemImage)
+                    Label(section.rawValue, systemImage: section.systemImage)
                 }
                 .accessibilityIdentifier(section.accessibilityIdentifier)
             }
@@ -59,9 +57,9 @@ private struct LibrarySectionPlaceholder: View {
         ContentUnavailableView(
             "Not built yet",
             systemImage: section.systemImage,
-            description: Text("\(section.title) will live here.")
+            description: Text("\(section.rawValue) will live here.")
         )
-        .navigationTitle(section.title)
+        .navigationTitle(section.rawValue)
         .navigationBarTitleDisplayMode(.inline)
     }
 }
