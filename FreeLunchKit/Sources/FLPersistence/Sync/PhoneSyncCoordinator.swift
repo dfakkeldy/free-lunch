@@ -15,7 +15,12 @@
 // - A failed apply, or a failed record after a successful apply, sends no
 //   ack. The record stays in the watch outbox and arrives again on the
 //   watch's next activation. After a failed record that copy reaches the
-//   applier a second time, which its insert-if-absent rule makes harmless.
+//   applier a second time. Its insert-if-absent rule keeps a phone edit
+//   made in between, but a phone delete made in between is undone: the
+//   copy finds no row and inserts it again. Apply and record are two
+//   saves, so a crash or failed save between them is the one path that
+//   still reopens. Closing it needs both in one save, which the store API
+//   does not offer yet.
 // - Digest out: the caller builds the digest (FLPlate's
 //   `WatchDigestBuilder`) and publishes it here; the channel keeps only the
 //   latest.
@@ -32,7 +37,9 @@ import Foundation
 /// - A shot or meal inserts only when no row with `item.id` exists; when one
 ///   does, the apply is a no-op. A replay never overwrites a phone-side
 ///   edit. A row the phone deleted after the id was recorded is covered by
-///   the ledger, not by this rule.
+///   the ledger, not by this rule. A row deleted after the apply but before
+///   the id was recorded is not covered by either: the replay inserts it
+///   again.
 /// - Hunger edits share their meal's `subjectID`, each with its own `id`.
 ///   An older edit can arrive after a newer one (a lost transfer resent
 ///   later), so the apply keeps the latest `editedAt` per meal. MealEntry

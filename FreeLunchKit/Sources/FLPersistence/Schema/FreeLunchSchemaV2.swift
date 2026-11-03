@@ -690,8 +690,8 @@ extension FreeLunchSchemaV2 {
     ///
     /// The ledger is what keeps a late retransmission from undoing a
     /// phone-side delete: an id found here is acked without being applied
-    /// again. Rows are kept indefinitely, one small row per watch-logged
-    /// record, with no pruning: a retransmission can arrive after any delay
+    /// again. Rows are kept indefinitely, one small row per applied outbox
+    /// item (one per shot or meal, one per hunger edit), with no pruning: a retransmission can arrive after any delay
     /// (a watch left off for weeks still holds its unacked outbox), so no
     /// age is safe to forget.
     @Model

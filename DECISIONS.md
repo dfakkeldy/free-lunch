@@ -26,14 +26,21 @@ is the phone's applied-outbox ledger, appended to the unshipped V2.
   acks. If recording fails after a successful apply it throws and sends no
   ack, so the watch resends. Closing this at the spine rather than in
   each applier covers every outbox kind with one rule.
-- **Ledger rows are kept forever.** One small row per watch-logged record,
-  never pruned: a retransmission can arrive after any delay (a watch left
+- **Ledger rows are kept forever.** One small row per applied outbox item
+  (shots and meals reuse their record's id, so one row each; every hunger
+  edit has its own id and row), never pruned: a retransmission can arrive after any delay (a watch left
   off for weeks still holds its unacked outbox), so no age is safe to
   forget.
 - **First copy wins in the applier too.** A crash or failed record between
   apply and record means the next copy reaches the applier again, so the
   applier still inserts a shot or meal only when no row with its id exists
   and otherwise does nothing, which keeps a phone edit made in between.
+  A phone delete made in between is not kept: apply and record are two
+  saves, so a crash or failed save after the apply leaves the row with no
+  ledger entry, and if the user deletes it before the watch resends, the
+  resend inserts it again. That needs a failure at that exact point, so it
+  is accepted for now; closing it means applying and recording in one
+  save, which the store API does not offer yet.
   One gap is still left to the phone-side applier: hunger edits must keep
   the latest `editedAt` per meal, which MealEntry does not store.
 - **Outbox records are immutable once queued.** An ack names an id, not a

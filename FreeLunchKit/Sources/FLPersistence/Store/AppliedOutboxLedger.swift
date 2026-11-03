@@ -9,8 +9,9 @@ import SwiftData
 
 /// A durable set of applied `WatchOutboxItem.id`s. Phone store only.
 ///
-/// Entries are kept indefinitely, one small row per watch-logged record,
-/// with no pruning. A retransmission can arrive after any delay (a watch
+/// Entries are kept indefinitely, one small row per applied outbox item,
+/// with no pruning. Shots and meals reuse their record's id as the outbox
+/// id, so that is one row each; every hunger edit has its own id and row. A retransmission can arrive after any delay (a watch
 /// left off for weeks still holds its unacked outbox), so there is no age
 /// after which an id is safe to forget.
 @MainActor
