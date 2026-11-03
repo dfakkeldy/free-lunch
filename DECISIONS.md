@@ -3,6 +3,14 @@
 Newest first. Product decisions live in the private planning repo; this log
 records the code-level choices made here.
 
+## 2026-11-03 — Flat 7-day default dosing interval
+
+- Every `MedicationProfileData` prefill uses `defaultIntervalDays` (7),
+  liraglutide included. There are no per-drug interval defaults.
+- The interval is edited per profile (`intervalDays`). Tests in `FLCoreTests`
+  pin the default for the three known medications and a custom profile.
+- No change to dose-period derivation or stored data.
+
 ## 2026-11-02 — Unit factors, target warnings and the weight gate
 
 Recorded from the first build's pull requests, which flagged these for the
