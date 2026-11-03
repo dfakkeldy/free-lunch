@@ -540,8 +540,8 @@ struct ExpenditureWeightGateGoldenTests {
         // weigh-in: today − 21 ≥ 6, today ≥ 27. The end of the window is
         // never the binding side here. On day 26 the window starts at day 5
         // midnight, before any defined trend, so the estimator pauses with
-        // .insufficientWeight although the intake gate (21 complete days)
-        // and the end-of-window weight check both pass.
+        // .insufficientWeight although the window holds 21 complete intake
+        // days (gate: 14) and the end-of-window weight check both pass.
         let intake = (0...40).map { logged($0, 2_000) }
         let weights = weighIns((0...40).map { ($0, 80.0) })
 

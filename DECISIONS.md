@@ -30,14 +30,14 @@ log.
   adjusting 1300 down to 1100 warns, and so does adjusting 1100 up to 1300.
   Warnings never block a save.
 - **Weight completeness reads "trend defined" at both ends of the window
-  (#7). Settled 2026-11-03, see the entry above.** Δtrend is the trend just before the window's first
-  day subtracted from the trend at the end of yesterday, so the estimator
-  pauses with `.insufficientWeight` until both ends exist. This is stricter
-  than the per-day completeness check alone: a new user's first estimate
-  needs about 26–27 days of history rather than 22. The alternatives
-  (a shorter span divided by 21, or a smaller divisor) would show a number
-  the data does not support. Changing the reading later is a small change to
-  one guard and the golden expectations.
+  (#7). Settled 2026-11-03, see the entry above.** Δtrend is the trend just
+  before the window's first day subtracted from the trend at the end of
+  yesterday, so the estimator pauses with `.insufficientWeight` until both
+  ends exist. This is stricter than the per-day completeness check alone:
+  a new user's first estimate needs about 26–27 days of history rather
+  than 22. The alternatives (a shorter span divided by 21, or a smaller
+  divisor) would show a number the data does not support. Changing the
+  reading later is a small change to one guard and the golden expectations.
 
 ## 2026-11-01 — Package shape
 
