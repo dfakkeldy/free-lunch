@@ -332,6 +332,11 @@ public enum ExpenditureEstimator {
         if completeDays < ExpenditureFormulaV1.minimumCompleteIntakeDays {
             return .paused(.insufficientIntake)
         }
+        // The weight gate reads "trend defined" at both ends of the window
+        // (settled 2026-11-03): the trend must exist just before the window's
+        // first day and at the end of yesterday. Δtrend needs both ends, and
+        // dividing a shorter span by 21 would manufacture a slope. A fresh
+        // user with daily weigh-ins therefore waits until about day 27.
         guard
             DayCompleteness.weight(window: window, series: weights).isComplete,
             let trendEnd = weights.trend(asOf: windowEnd),

@@ -243,7 +243,7 @@ struct WeightCorrectionTests {
         let correction = weightCorrection(9021, target: sample.hkUUID, day: 1, action: .exclude)
         try store.addCorrection(correction)
 
-        let modelNames = FreeLunchSchemaV1.models.map { String(reflecting: $0) }
+        let modelNames = FreeLunchSchemaCurrent.models.map { String(reflecting: $0) }
         let weightModels = modelNames.filter { $0.contains("Weight") || $0.contains("Correction") }
         #expect(weightModels.count == 2)
         #expect(weightModels.contains { $0.contains("WeightSampleMirror") })
