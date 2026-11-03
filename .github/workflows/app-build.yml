@@ -88,4 +88,14 @@ jobs:
           [[ "$(pb "$W" WKCompanionAppBundleIdentifier)" == "com.freelunch.nutrition" ]]
           [[ "$(/usr/libexec/PlistBuddy -c "Print :com.apple.developer.healthkit" FreeLunchPhone/FreeLunchPhone.entitlements)" == "true" ]]
           [[ "$(/usr/libexec/PlistBuddy -c "Print :com.apple.developer.healthkit" FreeLunchWatch/FreeLunchWatch.entitlements)" == "true" ]]
+          # The HealthKit entitlement obliges every bundle that carries it to
+          # have both Health purpose strings. App Store Connect enforces this
+          # only when an upload is analysed (error 90683), which neither this
+          # simulator build nor the release dry run reaches; the first fl-m0
+          # upload was refused because the Watch app lacked the update string.
+          for B in "$P" "$W" "$E"; do
+            for K in NSHealthShareUsageDescription NSHealthUpdateUsageDescription; do
+              [[ -n "$(pb "$B" "$K")" ]] || { echo "::error::$K missing from $B"; exit 1; }
+            done
+          done
           echo OK
