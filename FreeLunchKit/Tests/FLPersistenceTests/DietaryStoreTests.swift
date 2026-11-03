@@ -43,7 +43,7 @@ struct DietaryStoreTests {
             "sourceBundleID": false, "deletedInHK": false
         ])
         #expect(entity.relationships.isEmpty)
-        #expect(entity.uniquenessConstraints == [["hkUUID"]])
+        #expect(Set(entity.attributes.filter(\.isUnique).map(\.name)) == ["hkUUID"])
 
         // Swift types, checked at compile time.
         let row = DietarySampleMirror(
