@@ -3,6 +3,29 @@
 Newest first. Product decisions live in the private planning repo; this log
 records the code-level choices made here.
 
+## 2026-11-03 — Dose-period report boundaries and counts
+
+- **Placement is by instant, not calendar day**, using the convention
+  `DosePeriod` already has: `[start, end)` for a closed period, `[start, end]`
+  for the open one (`DosePeriod.contains`). On the day a strength changes, a
+  meal or side effect stamped before the shot is in the old period; one at or
+  after it is in the new period. Records before the first shot or after
+  `asOf` are in no period.
+- **Hunger**: unit is a logged meal placed by `loggedAt`. No hunger is
+  unknown and counted as such, never imputed; the mean is nil with no
+  ratings. An out-of-range stored value is treated as unknown, not rated.
+- **Side effects** are counted by `SideEffectType` as stored; `.other` is
+  keyed by its exact text. No correlation output anywhere.
+- **Trend at a boundary** is the §3 trend held from the latest weigh-in at or
+  before that instant (a weigh-in stamped exactly on the boundary counts). A
+  boundary with no weigh-in that day carries the last trend forward, however
+  old; the change is nil only while no trend is defined. The report does not
+  yet expose how stale that held value is.
+- **Where it lives**: counts and the report type are in `FLCore`
+  (`DosePeriodReports`, trend passed as a closure); `FLPersistence` is the only
+  target that sees both `FLCore` and `FLEnergyCore`, so the binding to a
+  `TrendSeries` is there.
+
 ## 2026-11-03 — Flat 7-day default dosing interval
 
 - Every `MedicationProfileData` prefill uses `defaultIntervalDays` (7),
