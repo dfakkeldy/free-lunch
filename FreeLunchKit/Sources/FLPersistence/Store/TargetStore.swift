@@ -16,8 +16,8 @@
 //   A period references its version row, so history renders with the math
 //   it pinned (spec §3 acceptance #5).
 // - **The activation schedule is not stored here.** Spec §1 has no entity
-//   for it; like the rate goal, α and the adoption mode it is a setting.
-//   `FormulaActivationSchedule` is Codable for whoever holds settings.
+//   for it; like the rate goal, α and the adoption mode it is a setting,
+//   kept by `EnergySettingsStore` (EnergySettingsStore.swift).
 //
 // Loading validates every row (finite values, a resolvable pinned version,
 // at most one open period and no overlap) and refuses a ledger that fails,

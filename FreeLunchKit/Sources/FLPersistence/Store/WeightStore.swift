@@ -15,6 +15,8 @@ public protocol WeightStore: AnyObject {
     func upsertWeightSample(_ sample: WeightSampleData) throws
     func markWeightSampleDeletedInHK(hkUUID: UUID) throws
     func weightSamples(includingDeletedInHK: Bool) throws -> [WeightSampleData]
+    /// One mirror row by its HealthKit UUID, flagged or not; nil if absent.
+    func weightSample(hkUUID: UUID) throws -> WeightSampleData?
     func addCorrection(_ correction: CorrectionData) throws
     func corrections(targetKind: CorrectionTargetKind?) throws -> [CorrectionData]
     func deleteCorrection(id: UUID) throws
@@ -59,6 +61,11 @@ extension SwiftDataStore: WeightStore {
             .filter { includingDeletedInHK || !$0.deletedInHK }
             .map { try $0.asWeightSampleData() }
             .sorted(by: WeightSampleData.displayOrder)
+    }
+
+    public func weightSample(hkUUID: UUID) throws -> WeightSampleData? {
+        try requireStoreKind(.phone, operation: "weightSample")
+        return try weightMirror(hkUUID: hkUUID)?.asWeightSampleData()
     }
 
     public func addCorrection(_ correction: CorrectionData) throws {

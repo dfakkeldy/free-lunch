@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // FreeLunchSchemaV2 — the v1 schema plus DietarySampleMirror (the spec §1
-// amendment declared in §10). V1 shipped to TestFlight, so its models are
-// frozen and this version is an append: FreeLunchMigrationPlan migrates V1
-// stores to it.
+// amendment declared in §10), the energy-settings pair, EnergySettingsRecord
+// and DidNotTrackMark (the persisted home of what spec §3 and §6 settings the
+// engine reads), and AppliedOutboxRecord (the phone's ledger of applied watch
+// outbox items, spec §9). V1 shipped to TestFlight, so its models are frozen
+// and this version is an append: FreeLunchMigrationPlan migrates V1 stores to
+// it.
 //
 // A versioned schema is a complete snapshot, not a diff, so every model is
 // declared again here as a nested copy. Nothing in this file names a V1
@@ -43,7 +46,10 @@ enum FreeLunchSchemaV2: VersionedSchema {
             TargetPeriod.self,
             RecentFoodSnapshot.self,
             WatchOutboxRecord.self,
-            DietarySampleMirror.self
+            DietarySampleMirror.self,
+            EnergySettingsRecord.self,
+            DidNotTrackMark.self,
+            AppliedOutboxRecord.self
         ]
     }
 }
@@ -676,6 +682,82 @@ extension FreeLunchSchemaV2 {
             self.fatG = fatG
             self.sourceBundleID = sourceBundleID
             self.deletedInHK = deletedInHK
+        }
+    }
+}
+
+// Energy settings (spec §3 and §6): what EnergyBinding.recompute reads.
+
+extension FreeLunchSchemaV2 {
+    /// The single row of energy-engine settings. Absent until the first
+    /// write; a store with no row reads as the spec defaults.
+    @Model
+    final class EnergySettingsRecord {
+        /// Constant, so a second row can never exist.
+        @Attribute(.unique) var singletonKey: String
+        /// Trend smoothing α per day, 0.05–0.25 (spec §3).
+        var trendAlpha: Double
+        /// Signed kg/week, loss negative (spec §3 "Calculated target").
+        var rateGoalKgPerWeek: Double
+        /// AdoptionMode raw value, stored raw so the persistent schema does
+        /// not depend on enum coding.
+        var adoptionModeRaw: String
+        /// The formula activation schedule as JSON (spec §3 "Versioning").
+        /// Nil means the builtin formula has always been active.
+        var activationScheduleJSON: Data?
+
+        init(
+            singletonKey: String,
+            trendAlpha: Double,
+            rateGoalKgPerWeek: Double,
+            adoptionModeRaw: String,
+            activationScheduleJSON: Data?
+        ) {
+            self.singletonKey = singletonKey
+            self.trendAlpha = trendAlpha
+            self.rateGoalKgPerWeek = rateGoalKgPerWeek
+            self.adoptionModeRaw = adoptionModeRaw
+            self.activationScheduleJSON = activationScheduleJSON
+        }
+    }
+
+    /// A calendar day the user marked "didn't track" (spec §3 "Day
+    /// completeness"). One row per day.
+    @Model
+    final class DidNotTrackMark {
+        /// The marked calendar day as a key, not an instant: its Gregorian
+        /// year, month and day at midnight UTC, whatever zone it was marked
+        /// in (EnergySettingsCoding.dayKey). Read back as the start of that
+        /// day in the reader's calendar, so a time-zone change keeps it on
+        /// the same day.
+        @Attribute(.unique) var day: Date
+
+        init(day: Date) {
+            self.day = day
+        }
+    }
+}
+
+// Sync spine (spec §9): AppliedOutboxRecord.
+
+extension FreeLunchSchemaV2 {
+    /// One watch outbox item the phone has applied, keyed by the item's
+    /// acknowledgement id (`WatchOutboxItem.id`). Phone store only.
+    ///
+    /// The ledger is what keeps a late retransmission from undoing a
+    /// phone-side delete: an id found here is acked without being applied
+    /// again. Rows are kept indefinitely, one small row per applied outbox
+    /// item (one per shot or meal, one per hunger edit), with no pruning: a retransmission can arrive after any delay
+    /// (a watch left off for weeks still holds its unacked outbox), so no
+    /// age is safe to forget.
+    @Model
+    final class AppliedOutboxRecord {
+        @Attribute(.unique) var id: UUID
+        var appliedAt: Date
+
+        init(id: UUID, appliedAt: Date) {
+            self.id = id
+            self.appliedAt = appliedAt
         }
     }
 }
