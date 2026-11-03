@@ -3,6 +3,24 @@
 Newest first. Product decisions live in the private planning repo; this log
 records the code-level choices made here.
 
+## 2026-11-03 — Exposure curve math
+
+- `ExposureCurve` (FLCore) sums one Bateman curve per logged shot, scaled
+  by its dose, and returns percent of a steady-state peak. Nothing else
+  leaves it: no absolute level is exposed.
+- `ka` is solved by bisection on `log1p(x) / x = ke·tmax` with
+  `x = ka / ke − 1`, iterated until the midpoint stops moving in Double. A
+  profile whose tmax is not below `halfLifeHours / ln 2` has no such `ka`
+  and is rejected rather than clamped.
+- 100% is the closed-form steady-state peak of a never-miss schedule at the
+  latest logged shot's dose and the profile's interval. One reference covers
+  the whole curve, so earlier lower-dose weeks read below 100%. Values are
+  not capped; a shorter spacing than the interval can exceed 100%.
+- Golden vectors come from `Scripts/exposure-curve-golden.py`, which works
+  in 50-digit decimal, solves `ka` by Newton's method and finds the
+  reference by brute-force superposition, so it shares no method with the
+  Swift code.
+
 ## 2026-11-03 — Flat 7-day default dosing interval
 
 - Every `MedicationProfileData` prefill uses `defaultIntervalDays` (7),
