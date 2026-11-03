@@ -70,6 +70,12 @@ if (( statuses[1] != 0 || statuses[2] != 0 )); then
   fail "logging the altool output failed (scrub exit ${statuses[1]}, tee exit ${statuses[2]})"
 fi
 
+# Read the log byte-wise from here on (altool itself ran in the runner's own
+# locale). The hosted macOS image exports a UTF-8 LANG, and under it BSD sed
+# stops with "illegal byte sequence" on one bad byte, failing the step with
+# no verdict.
+export LC_ALL=C
+
 # Xcode 26's altool has exited 0 on server-side errors, so this fails on
 # error text as well as on the exit code. Failure text in the forms altool
 # and Transporter print: a log-level "ERROR:", "*** Error", "ERROR
@@ -92,13 +98,15 @@ WARN='(^|[^[:alnum:]_])warn(ing)?:|\*\*\* ?warning|(^|[^[:alnum:]_])warning[[:sp
 # error line fail regardless.
 # The exact shape of those notices, e.g. "ERROR: [ContentDelivery.Uploader.
 # 97AC14400] GET UPLOAD STATE (ASSET_SPI): received status code 500;
-# internal server error. (MCTJQGUYKIMWUZMYMG2ZA6WKLQ) (500)". Anything that
+# internal server error. (MCTJQGUYKIMWUZMYMG2ZA6WKLQ) (500)". The request
+# ID in parentheses is the response's correlation key, which altool adds only
+# when the response carries one, so it is optional. Anything that
 # merely mentions a 5xx (an "UPLOAD FAILED ... status code 500" banner, say)
 # is not a retry notice and still fails.
 # Anchored at both ends; the only prefix allowed is altool's own timestamp.
 # The reason is letters, spaces and hyphens ("gateway time-out"), so it
 # cannot carry a code.
-RETRY='^([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9:.]+ )?ERROR: \[[A-Za-z0-9._]+\] [^:]+: received status code 5[0-9]{2}; [A-Za-z -]+\. \([A-Z0-9]+\) \(5[0-9]{2}\)[[:space:]]*$'
+RETRY='^([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9:.]+ )?ERROR: \[[A-Za-z0-9._]+\] [^:]+: received status code 5[0-9]{2}; [A-Za-z -]+\.( \([A-Z0-9]+\))? \(5[0-9]{2}\)[[:space:]]*$'
 # Each starts a word, and 90683 stands alone as in ERR, so a hex instance tag
 # or a base32 request ID that happens to contain one is not a verdict.
 VERDICT_CODE='(^|[^[:alnum:]])(itms-[0-9]+|fail)|(^|[^[:alnum:]_])90683([^[:alnum:]_]|$)'
