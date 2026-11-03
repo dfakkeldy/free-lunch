@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // The current-schema facade. Store code names `FoodItem`, never
-// `FreeLunchSchemaV1.FoodItem`; this block decides which version that means.
+// `FreeLunchSchemaV2.FoodItem`; this block decides which version that means.
+// FreeLunchContainer builds its schema from `FreeLunchSchemaCurrent`.
 //
-// The v2 procedure:
-//  1. Add Schema/FreeLunchSchemaV2.swift with `enum FreeLunchSchemaV2:
+// The procedure for a new version n (V2 followed it):
+//  1. Add Schema/FreeLunchSchemaVn.swift with `enum FreeLunchSchemaVn:
 //     VersionedSchema` holding a nested copy of every model (a versioned
-//     schema is a complete snapshot, not a diff), with the v2 change
-//     applied. Do not reference V1 types from V2.
-//  2. Append V2 and one MigrationStage to FreeLunchMigrationPlan.
-//  3. Point `Schema(versionedSchema:)` in FreeLunchContainer at V2.
-//  4. Repoint the typealiases below. Nothing else names a version.
+//     schema is a complete snapshot, not a diff), with the change applied.
+//     Do not reference an earlier version's types from it.
+//  2. Append Vn and one MigrationStage to FreeLunchMigrationPlan.
+//  3. Repoint the typealiases below. Nothing else names a version.
 
-typealias FreeLunchSchemaCurrent = FreeLunchSchemaV1
+typealias FreeLunchSchemaCurrent = FreeLunchSchemaV2
 
 typealias FoodItem = FreeLunchSchemaCurrent.FoodItem
 typealias Recipe = FreeLunchSchemaCurrent.Recipe
@@ -32,3 +32,4 @@ typealias FormulaVersion = FreeLunchSchemaCurrent.FormulaVersion
 typealias TargetPeriod = FreeLunchSchemaCurrent.TargetPeriod
 typealias RecentFoodSnapshot = FreeLunchSchemaCurrent.RecentFoodSnapshot
 typealias WatchOutboxRecord = FreeLunchSchemaCurrent.WatchOutboxRecord
+typealias DietarySampleMirror = FreeLunchSchemaCurrent.DietarySampleMirror
