@@ -3,6 +3,17 @@
 Newest first. Product decisions live in the private planning repo; this log
 records the code-level choices made here.
 
+## 2026-11-03 — Weight gate: both-ends reading settled
+
+Product decision: keep the stricter reading recorded as under review on
+2026-11-02 (#7). "Trend defined" means defined at both ends of the 21-day
+window: just before its first day and at the end of yesterday. Δtrend needs
+both ends, and a shorter span divided by 21 would show a number the data does
+not support. A fresh user with complete logging and a weigh-in every day from
+day 0 gets the first estimate on day 27 (the trend itself is undefined until
+the sixth weigh-in), and `.paused(.insufficientWeight)` on day 26. A golden
+test pins both days and the guard carries a doc comment. No behaviour change.
+
 ## 2026-11-02 — Unit factors, target warnings and the weight gate
 
 Recorded from the first build's pull requests, which flagged these for the
@@ -19,7 +30,7 @@ log.
   adjusting 1300 down to 1100 warns, and so does adjusting 1100 up to 1300.
   Warnings never block a save.
 - **Weight completeness reads "trend defined" at both ends of the window
-  (#7). Under review.** Δtrend is the trend just before the window's first
+  (#7). Settled 2026-11-03, see the entry above.** Δtrend is the trend just before the window's first
   day subtracted from the trend at the end of yesterday, so the estimator
   pauses with `.insufficientWeight` until both ends exist. This is stricter
   than the per-day completeness check alone: a new user's first estimate
