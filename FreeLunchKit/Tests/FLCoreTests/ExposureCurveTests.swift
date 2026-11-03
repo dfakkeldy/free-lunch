@@ -283,4 +283,18 @@ struct ExposureCurveTests {
         let zero = ShotEventData(takenAt: F.hour(1), dose: Milligrams(0), medicationID: profile.id)
         #expect(throws: ExposureCurveError.invalidDose) { try curve([shot, zero], profile) }
     }
+
+    @Test(
+        "tmax at halfLifeHours / ln 2 is rejected whichever way ke·tmax rounds",
+        arguments: KnownMedication.allCases
+    )
+    func tmaxBoundRejected(known: KnownMedication) {
+        var profile = MedicationProfileData(known: known)
+        let shot = ShotEventData(takenAt: F.anchor, dose: Milligrams(1), medicationID: profile.id)
+        let bound = profile.halfLifeHours / M_LN2
+        for tmax in [bound, bound.nextDown, bound.nextUp] {
+            profile.tmaxHours = tmax
+            #expect(throws: ExposureCurveError.invalidTmax) { try curve([shot], profile) }
+        }
+    }
 }

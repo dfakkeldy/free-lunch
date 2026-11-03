@@ -162,6 +162,10 @@ def main(argv):
     assert abs(single_peak_hours - tmax) < Decimal("1e-12")
 
     shots = [(Decimal(day) * 24, Decimal(dose)) for day, dose in FIXTURES[name]["shots"]]
+    # Swift breaks a takenAt tie by shot id, which a fixture here does not
+    # carry, so tied times would pick a different reference dose.
+    times = [at for at, _ in shots]
+    assert len(set(times)) == len(times), "shot times must be distinct"
     latest_dose = max(shots)[1]
     offset, unit_peak = steady_state_peak(ke, ka, interval_hours)
     reference = latest_dose * unit_peak

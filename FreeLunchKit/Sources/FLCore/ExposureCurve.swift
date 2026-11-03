@@ -15,7 +15,9 @@
 //   to 0 (x → ∞). A root exists only when 0 < tmax < 1 / ke
 //   (= halfLifeHours / ln 2). x is found by bisection: the upper bracket
 //   doubles from 1 until it passes the root, then the bracket halves until
-//   the midpoint no longer moves in Double. Same inputs, same ka.
+//   the midpoint no longer moves in Double. Same inputs, same ka. A root
+//   with x ≤ 1e-9 is rejected: ka sits so close to ke that the difference
+//   of exponentials loses its precision, down to a flat zero at the bound.
 // - The Bateman constant ka / (ka - ke) multiplies the curve and the
 //   reference alike, so it is left out.
 //
@@ -43,7 +45,9 @@ public enum ExposureCurveError: Error, Sendable, Hashable {
     /// halfLifeHours is not a positive finite number.
     case invalidHalfLife
     /// tmaxHours is not in (0, halfLifeHours / ln 2), so no single-dose
-    /// curve with ka > ke peaks there.
+    /// curve with ka > ke peaks there. A tmax so close to the upper bound
+    /// that ka would differ from ke by less than one part in 10^9 counts as
+    /// the bound.
     case invalidTmax
     /// intervalDays is not positive.
     case invalidInterval
@@ -81,6 +85,8 @@ public struct ExposureCurve: Sendable {
     private let referencePeak: Double
 
     static let secondsPerHour: Double = 3_600
+    /// Smallest accepted ka / ke - 1. Below it ka cannot be told from ke.
+    static let minimumRateGap: Double = 1e-9
 
     public init(shots: [ShotEventData], profile: MedicationProfileData) throws(ExposureCurveError) {
         let halfLife = profile.halfLifeHours
@@ -164,7 +170,9 @@ public struct ExposureCurve: Sendable {
             if h(mid) > target { lower = mid } else { upper = mid }
         }
         let x = lower + (upper - lower) / 2
-        guard x > 0 else { return nil }
+        // A tmax within rounding of the bound leaves ka a few ulps above ke,
+        // and the curve cancels to nothing. Treat it as the bound itself.
+        guard x > minimumRateGap else { return nil }
         let ka = ke * (1 + x)
         return ka.isFinite && ka > ke ? ka : nil
     }
