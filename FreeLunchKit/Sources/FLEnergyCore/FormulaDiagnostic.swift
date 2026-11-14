@@ -10,7 +10,7 @@ public struct FormulaDiagnostic: Error, Sendable, Hashable {
     public let kind: Kind
     public let range: Range<Int>
 
-    public init(_ kind: Kind, _ range: Range<Int>) {
+    public init(kind: Kind, range: Range<Int>) {
         self.kind = kind
         self.range = range
     }
@@ -27,7 +27,8 @@ public struct FormulaDiagnostic: Error, Sendable, Hashable {
         /// ``FormulaParser/maxDepth``. The range is the opening `(`.
         case tooDeep
         /// A character outside the grammar's alphabet (`#`, an emoji, a
-        /// non-breaking space). The range is that one character.
+        /// non-breaking space, an accented letter). The range is that one
+        /// character, even when it follows a name directly (`ó` in `rhó`).
         case unexpectedCharacter
         /// A run starting with a digit or `.` that is not digits with an
         /// optional `.digits` fraction: `1.`, `.5`, `1.2.3`, `1e3`, `2rho`.
@@ -39,7 +40,8 @@ public struct FormulaDiagnostic: Error, Sendable, Hashable {
         /// one of the four functions in call position (`rho(1)`).
         case unknownIdentifier(String)
         /// A call with the wrong number of arguments. The range runs from the
-        /// function name through its closing `)`.
+        /// function name through its closing `)`. `expected` is always
+        /// `function.arity`, repeated so a message needs nothing else.
         case wrongArgumentCount(FormulaFunction, expected: Int, found: Int)
         /// A complete operand is followed by something that cannot continue
         /// it, such as `2` in `1 2` or `,` outside a call.

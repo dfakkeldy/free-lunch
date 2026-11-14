@@ -19,7 +19,7 @@
 /// than `+` and `-`, and unary minus binds tighter than both (`-2 * 3` is
 /// `(-2) * 3`). There is no unary plus and no exponent in literals.
 ///
-/// Limits, checked in this order:
+/// Limits:
 /// - Length: at most ``maxLength`` UTF-16 code units, counted before
 ///   anything else is read. Diagnostic ranges use the same unit.
 /// - Depth: every parenthesis group and every call's argument list opens one
@@ -27,8 +27,9 @@
 ///   rejected. Unary minus does not count; the length cap bounds it.
 /// - Arity: each function takes exactly ``FormulaFunction/arity`` arguments.
 ///
-/// When text has several problems, the one reached first reading left to
-/// right is reported.
+/// Length is checked first. Otherwise, when text has several problems, the
+/// one reached first reading left to right is reported, whatever its kind.
+/// A function name may be separated from its `(` by whitespace.
 public enum FormulaParser {
     /// Maximum formula length, in UTF-16 code units.
     public static let maxLength = 500
@@ -38,12 +39,12 @@ public enum FormulaParser {
     public static func parse(_ source: String) -> Result<FormulaExpression, FormulaDiagnostic> {
         let length = source.utf16.count
         if length > maxLength {
-            return .failure(FormulaDiagnostic(.tooLong(length: length), overflowStart(of: source)..<length))
+            return .failure(FormulaDiagnostic(kind: .tooLong(length: length), range: overflowStart(of: source)..<length))
         }
         let tokens = FormulaLexer.tokens(of: source)
         if tokens.count == 1 {
             // Only the end token: nothing but whitespace.
-            return .failure(FormulaDiagnostic(.empty, 0..<length))
+            return .failure(FormulaDiagnostic(kind: .empty, range: 0..<length))
         }
         var parser = Parser(tokens: tokens)
         do {
@@ -128,6 +129,15 @@ enum FormulaLexer {
                     last = characters[index].end
                     index += 1
                 }
+                if index < characters.count, characters[index].ascii == nil {
+                    // A word running straight into a non-ASCII character
+                    // (`rhó` is `rh` then `ó`): blame the character, not a
+                    // truncated name.
+                    let bad = characters[index]
+                    tokens.append(FormulaToken(kind: .invalid(.unexpectedCharacter), range: bad.start..<bad.end))
+                    index += 1
+                    continue
+                }
                 let word = String(decoding: text, as: UTF8.self)
                 let kind: FormulaToken.Kind = isNumber ? numberKind(word) : .identifier(word)
                 tokens.append(FormulaToken(kind: kind, range: start..<last))
@@ -203,9 +213,9 @@ private struct Parser {
         let expression = try sum()
         switch current.kind {
         case .end: return expression
-        case .invalid(let kind): throw FormulaDiagnostic(kind, current.range)
-        case .rightParen: throw FormulaDiagnostic(.unmatchedClosingParenthesis, current.range)
-        default: throw FormulaDiagnostic(.unexpectedToken, current.range)
+        case .invalid(let kind): throw FormulaDiagnostic(kind: kind, range: current.range)
+        case .rightParen: throw FormulaDiagnostic(kind: .unmatchedClosingParenthesis, range: current.range)
+        default: throw FormulaDiagnostic(kind: .unexpectedToken, range: current.range)
         }
     }
 
@@ -263,13 +273,13 @@ private struct Parser {
             // current is not .end, so a next token exists.
             if tokens[index + 1].kind == .leftParen {
                 guard let function = FormulaFunction(rawValue: name) else {
-                    throw FormulaDiagnostic(.unknownIdentifier(name), token.range)
+                    throw FormulaDiagnostic(kind: .unknownIdentifier(name), range: token.range)
                 }
                 advance()
                 return try call(function, name: token)
             }
             guard let variable = FormulaVariable(rawValue: name) else {
-                throw FormulaDiagnostic(.unknownIdentifier(name), token.range)
+                throw FormulaDiagnostic(kind: .unknownIdentifier(name), range: token.range)
             }
             advance()
             return .variable(variable)
@@ -285,16 +295,16 @@ private struct Parser {
         case .end:
             // Empty text never gets here, so a previous token exists.
             let dangling = index > 0 ? tokens[index - 1].range : token.range
-            throw FormulaDiagnostic(.unexpectedEnd, dangling)
+            throw FormulaDiagnostic(kind: .unexpectedEnd, range: dangling)
 
         case .invalid(let kind):
-            throw FormulaDiagnostic(kind, token.range)
+            throw FormulaDiagnostic(kind: kind, range: token.range)
 
         case .rightParen:
-            throw FormulaDiagnostic(depth == 0 ? .unmatchedClosingParenthesis : .expectedOperand, token.range)
+            throw FormulaDiagnostic(kind: depth == 0 ? .unmatchedClosingParenthesis : .expectedOperand, range: token.range)
 
         case .plus, .minus, .star, .slash, .comma:
-            throw FormulaDiagnostic(.expectedOperand, token.range)
+            throw FormulaDiagnostic(kind: .expectedOperand, range: token.range)
         }
     }
 
@@ -318,8 +328,8 @@ private struct Parser {
         close()
         guard arguments.count == function.arity else {
             throw FormulaDiagnostic(
-                .wrongArgumentCount(function, expected: function.arity, found: arguments.count),
-                name.range.lowerBound..<closeToken.range.upperBound
+                kind: .wrongArgumentCount(function, expected: function.arity, found: arguments.count),
+                range: name.range.lowerBound..<closeToken.range.upperBound
             )
         }
         return .call(function, arguments)
@@ -328,7 +338,7 @@ private struct Parser {
     mutating func open(_ token: FormulaToken) throws(FormulaDiagnostic) {
         depth += 1
         if depth > FormulaParser.maxDepth {
-            throw FormulaDiagnostic(.tooDeep, token.range)
+            throw FormulaDiagnostic(kind: .tooDeep, range: token.range)
         }
     }
 
@@ -341,9 +351,9 @@ private struct Parser {
     /// The error when a group opened by `openToken` is not followed by `)`.
     func unclosed(_ openToken: FormulaToken) -> FormulaDiagnostic {
         switch current.kind {
-        case .end: FormulaDiagnostic(.unclosedParenthesis, openToken.range)
-        case .invalid(let kind): FormulaDiagnostic(kind, current.range)
-        default: FormulaDiagnostic(.unexpectedToken, current.range)
+        case .end: FormulaDiagnostic(kind: .unclosedParenthesis, range: openToken.range)
+        case .invalid(let kind): FormulaDiagnostic(kind: kind, range: current.range)
+        default: FormulaDiagnostic(kind: .unexpectedToken, range: current.range)
         }
     }
 }

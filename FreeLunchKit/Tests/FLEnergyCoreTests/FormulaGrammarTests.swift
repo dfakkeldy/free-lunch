@@ -56,7 +56,7 @@ private let acceptRows: [AcceptRow] = [
     AcceptRow(source: "max(trend_now,trend_start)", expected: .call(.max, [v(.trendNow), v(.trendStart)]), note: "max at arity 2"),
     AcceptRow(
         source: "clamp(n_complete, 0, 21)",
-        expected: .call(.clamp, [v(.completeDays), num(0), num(21)]),
+        expected: .call(.clamp, [v(.completeDayCount), num(0), num(21)]),
         note: "clamp at arity 3"
     ),
     AcceptRow(source: "abs(-weigh_in_count)", expected: .call(.abs, [.negate(v(.weighInCount))]), note: "abs at arity 1"),
@@ -71,6 +71,13 @@ private let acceptRows: [AcceptRow] = [
     AcceptRow(source: "-(1 + 2)", expected: .negate(add(num(1), num(2))), note: "unary minus on a group"),
     AcceptRow(source: "0.5 + 007 + 1.25", expected: add(add(num(0.5), num(7)), num(1.25)), note: "literal shapes"),
     AcceptRow(source: largestFiniteLiteral, expected: num(.greatestFiniteMagnitude), note: "largest finite literal"),
+    AcceptRow(source: "-0", expected: .negate(num(0)), note: "minus zero is a negated literal"),
+    AcceptRow(source: "min (1, 2)", expected: .call(.min, [num(1), num(2)]), note: "space before a call's ("),
+    AcceptRow(
+        source: Array(repeating: "(1)", count: 17).joined(separator: " + "),
+        expected: (1..<17).reduce(num(1)) { sum, _ in add(sum, num(1)) },
+        note: "17 sibling groups are depth 1"
+    ),
     AcceptRow(source: "((rho))", expected: v(.rho), note: "redundant parentheses leave no trace"),
     AcceptRow(source: "\t1\r\n+\n2 \r", expected: add(num(1), num(2)), note: "tab, CR, LF and CRLF are whitespace"),
     AcceptRow(source: nested("(", 16), expected: num(1), note: "16 nested groups"),
@@ -103,6 +110,7 @@ private let rejectRows: [RejectRow] = [
     RejectRow(source: "rho(1)", kind: .unknownIdentifier("rho"), range: 0..<3, note: "a variable called as a function"),
     RejectRow(source: "1 + Min(1, 2)", kind: .unknownIdentifier("Min"), range: 4..<7, note: "function names are case-sensitive"),
     RejectRow(source: "sqrt(4)", kind: .unknownIdentifier("sqrt"), range: 0..<4, note: "only four functions exist"),
+    RejectRow(source: "rho (1)", kind: .unknownIdentifier("rho"), range: 0..<3, note: "a spaced variable call"),
     RejectRow(source: "min + 1", kind: .unknownIdentifier("min"), range: 0..<3, note: "a function used as a value"),
 
     // Arity.
@@ -142,6 +150,9 @@ private let rejectRows: [RejectRow] = [
     RejectRow(source: "1 + 😀", kind: .unexpectedCharacter, range: 4..<6, note: "an emoji after a token"),
     RejectRow(source: "👍🏽", kind: .unexpectedCharacter, range: 0..<4, note: "an emoji with a skin-tone modifier"),
     RejectRow(source: "e\u{301}", kind: .unexpectedCharacter, range: 0..<2, note: "a letter with a combining mark"),
+    RejectRow(source: "rh\u{F3}", kind: .unexpectedCharacter, range: 2..<3, note: "an accented letter ending a name"),
+    RejectRow(source: "rho\u{301}", kind: .unexpectedCharacter, range: 2..<4, note: "a combining mark ending a name"),
+    RejectRow(source: "21\u{301}", kind: .unexpectedCharacter, range: 1..<3, note: "a combining mark ending a literal"),
     RejectRow(source: "rho\u{A0}+ 1", kind: .unexpectedCharacter, range: 3..<4, note: "a non-breaking space"),
     RejectRow(source: "1 ^ 2", kind: .unexpectedCharacter, range: 2..<3, note: "no power operator"),
 
@@ -169,6 +180,8 @@ private let rejectRows: [RejectRow] = [
     RejectRow(source: "1.", kind: .invalidNumber, range: 0..<2, note: "no trailing dot"),
     RejectRow(source: ".5", kind: .invalidNumber, range: 0..<2, note: "no leading dot"),
     RejectRow(source: "1.2.3", kind: .invalidNumber, range: 0..<5, note: "one fraction at most"),
+    RejectRow(source: ".", kind: .invalidNumber, range: 0..<1, note: "a lone dot"),
+    RejectRow(source: "1_000", kind: .invalidNumber, range: 0..<5, note: "no digit separators"),
     RejectRow(source: "1e3", kind: .invalidNumber, range: 0..<3, note: "no exponent"),
     RejectRow(source: "2rho", kind: .invalidNumber, range: 0..<4, note: "no implicit multiplication"),
     RejectRow(
@@ -181,6 +194,11 @@ private let rejectRows: [RejectRow] = [
     RejectRow(source: "foo + #", kind: .unknownIdentifier("foo"), range: 0..<3, note: "name before bad character"),
     RejectRow(source: "1 2 #", kind: .unexpectedToken, range: 2..<3, note: "stray token before bad character"),
     RejectRow(source: "# 1 2", kind: .unexpectedCharacter, range: 0..<1, note: "bad character before stray token"),
+    RejectRow(
+        source: "min(1) + " + nested("(", 17),
+        kind: .wrongArgumentCount(.min, expected: 2, found: 1), range: 0..<6,
+        note: "arity before a later depth violation"
+    ),
     RejectRow(source: "foo#", kind: .unknownIdentifier("foo"), range: 0..<3, note: "lookahead does not report early"),
 ]
 
@@ -193,7 +211,7 @@ struct FormulaGrammarTests {
 
     @Test("rejected formulas report the expected kind and range", arguments: rejectRows)
     func rejects(_ row: RejectRow) {
-        #expect(FormulaParser.parse(row.source) == .failure(FormulaDiagnostic(row.kind, row.range)))
+        #expect(FormulaParser.parse(row.source) == .failure(FormulaDiagnostic(kind: row.kind, range: row.range)))
     }
 
     @Test("all eight variables parse by their exact names")
@@ -220,8 +238,8 @@ struct FormulaGrammarTests {
                     #expect(parsed(source) == .call(function, Array(repeating: num(1), count: count)))
                 } else {
                     #expect(diagnostic(source) == FormulaDiagnostic(
-                        .wrongArgumentCount(function, expected: function.arity, found: count),
-                        0..<source.utf16.count
+                        kind: .wrongArgumentCount(function, expected: function.arity, found: count),
+                        range: 0..<source.utf16.count
                     ))
                 }
             }
@@ -236,7 +254,8 @@ struct FormulaGrammarTests {
 
     @Test("parsing never evaluates: a parsed formula is a plain value")
     func parsedValue() {
-        // 1 + 2 stays an addition, and 1 / 0 parses (evaluation is fl-m4-02's).
+        // 1 + 2 stays an addition, and 1 / 0 parses: evaluation is not the
+        // parser's job.
         #expect(parsed("1 + 2") == add(num(1), num(2)))
         #expect(parsed("1 / 0") == div(num(1), num(0)))
         // Spacing and redundant parentheses are not part of the value.
@@ -265,11 +284,7 @@ private struct SplitMix64: RandomNumberGenerator {
 private func render(_ expression: E) -> String {
     switch expression {
     case .number(let value):
-        // Generated literals are whole or have a short fraction; print them
-        // without an exponent.
-        let whole = value.rounded(.towardZero)
-        let fraction = Int(((value - whole) * 100).rounded())
-        return fraction == 0 ? String(Int(whole)) : "\(Int(whole)).\(fraction < 10 ? "0" : "")\(fraction)"
+        return plainDecimal(value)
     case .variable(let variable):
         return variable.rawValue
     case .negate(let inner):
@@ -279,6 +294,22 @@ private func render(_ expression: E) -> String {
     case .call(let function, let arguments):
         return function.rawValue + "(" + arguments.map(render).joined(separator: ", ") + ")"
     }
+}
+
+/// A non-negative finite Double as grammar-legal digits: Swift's shortest
+/// round-trip text with any exponent shifted into the digits, so parsing it
+/// gives the same Double back.
+private func plainDecimal(_ value: Double) -> String {
+    let text = "\(value)"
+    guard let e = text.firstIndex(of: "e") else { return text }
+    let exponent = Int(text[text.index(after: e)...]) ?? 0
+    let parts = text[..<e].split(separator: ".", omittingEmptySubsequences: false)
+    let whole = String(parts[0])
+    let digits = whole + (parts.count > 1 ? String(parts[1]) : "")
+    let point = whole.count + exponent
+    if point <= 0 { return "0." + String(repeating: "0", count: -point) + digits }
+    if point >= digits.count { return digits + String(repeating: "0", count: point - digits.count) }
+    return String(digits.prefix(point)) + "." + String(digits.dropFirst(point))
 }
 
 private func randomTree(_ rng: inout SplitMix64, depth: Int) -> E {
@@ -324,6 +355,34 @@ private func callsMatchArity(_ expression: E) -> Bool {
     }
 }
 
+private let fuzzPieces = [
+    "1", "0.5", "42", "rho", "trend_delta", "Rho", "foo", "min", "max", "clamp", "abs",
+    "(", ")", ",", "+", "-", "*", "/", " ", "\t", "\r\n", ".", "e", "#", "😀", "👍🏽",
+    "\u{A0}", "\u{301}", "é", "_", "9", "^", "((((((((((", "))", "1e400",
+]
+
+/// Parses `text`, checks what must hold for any input, and names the
+/// outcome: "ok" or the diagnostic kind.
+private func checkInvariants(_ text: String) -> String {
+    switch FormulaParser.parse(text) {
+    case .success(let tree):
+        #expect(callsMatchArity(tree), "\(text)")
+        let rendered = render(tree)
+        if rendered.utf16.count <= FormulaParser.maxLength {
+            #expect(FormulaParser.parse(rendered) == .success(tree), "\(text)")
+        }
+        return "ok"
+    case .failure(let error):
+        let boundaries = characterBoundaries(text)
+        #expect(boundaries.contains(error.range.lowerBound), "\(text)")
+        #expect(boundaries.contains(error.range.upperBound), "\(text)")
+        #expect(error.range.upperBound <= text.utf16.count, "\(text)")
+        #expect(!error.range.isEmpty || text.isEmpty, "\(text)")
+        let label = String(describing: error.kind)
+        return String(label.prefix { $0 != "(" })
+    }
+}
+
 @Suite("Formula grammar properties")
 struct FormulaGrammarPropertyTests {
     @Test("rendering a tree and parsing it back gives the same tree")
@@ -335,7 +394,10 @@ struct FormulaGrammarPropertyTests {
             let text = render(tree)
             let result = FormulaParser.parse(text)
             if text.utf16.count > FormulaParser.maxLength {
-                #expect(throws: FormulaDiagnostic.self) { try result.get() }
+                #expect(result == .failure(FormulaDiagnostic(
+                    kind: .tooLong(length: text.utf16.count),
+                    range: FormulaParser.maxLength..<text.utf16.count
+                )))
                 continue
             }
             #expect(result == .success(tree), "\(text)")
@@ -346,26 +408,54 @@ struct FormulaGrammarPropertyTests {
 
     @Test("random text never traps; diagnostics land on character boundaries")
     func fuzz() {
-        let pieces = [
-            "1", "0.5", "42", "rho", "trend_delta", "Rho", "foo", "min", "max", "clamp", "abs",
-            "(", ")", ",", "+", "-", "*", "/", " ", "\t", "\r\n", ".", "e", "#", "😀", "👍🏽",
-            "\u{A0}", "\u{301}", "é", "_", "9", "^",
-        ]
         var rng = SplitMix64(state: 0xBEEF)
+        var outcomes: [String: Int] = [:]
         for _ in 0..<5_000 {
             let count = Int.random(in: 0...40, using: &rng)
-            let text = (0..<count).map { _ in pieces.randomElement(using: &rng) ?? "" }.joined()
-            switch FormulaParser.parse(text) {
-            case .success(let tree):
-                #expect(callsMatchArity(tree), "\(text)")
-                #expect(FormulaParser.parse(render(tree)) == .success(tree), "\(text)")
-            case .failure(let error):
-                let boundaries = characterBoundaries(text)
-                #expect(boundaries.contains(error.range.lowerBound), "\(text)")
-                #expect(boundaries.contains(error.range.upperBound), "\(text)")
-                #expect(error.range.upperBound <= text.utf16.count, "\(text)")
-                #expect(!error.range.isEmpty || text.isEmpty, "\(text)")
+            let text = (0..<count).map { _ in fuzzPieces.randomElement(using: &rng) ?? "" }.joined()
+            outcomes[checkInvariants(text), default: 0] += 1
+        }
+        // Mostly junk by design; this side covers lexical and early errors.
+        #expect(outcomes.keys.contains("unexpectedCharacter"))
+        #expect(outcomes.keys.contains("invalidNumber"))
+        #expect(outcomes.keys.contains("unknownIdentifier"))
+    }
+
+    @Test("one-edit mutations of valid formulas never trap and keep the invariants")
+    func mutationFuzz() {
+        var rng = SplitMix64(state: 0x5EED)
+        var outcomes: [String: Int] = [:]
+        for _ in 0..<5_000 {
+            var characters = Array(render(randomTree(&rng, depth: Int.random(in: 1...7, using: &rng))))
+            switch Int.random(in: 0...3, using: &rng) {
+            case 0 where !characters.isEmpty:
+                let at = Int.random(in: 0..<characters.count, using: &rng)
+                let length = Int.random(in: 1...3, using: &rng)
+                characters.removeSubrange(at..<min(at + length, characters.count))
+            case 1:
+                let at = Int.random(in: 0...characters.count, using: &rng)
+                characters.insert(contentsOf: fuzzPieces.randomElement(using: &rng) ?? "", at: at)
+            case 3:
+                // Push nesting toward the depth cap.
+                let levels = Int.random(in: 5...12, using: &rng)
+                characters = Array(String(repeating: "(", count: levels)) + characters
+                    + Array(String(repeating: ")", count: levels))
+            default:
+                if characters.count > 1 {
+                    let a = Int.random(in: 0..<characters.count, using: &rng)
+                    let b = Int.random(in: 0..<characters.count, using: &rng)
+                    characters.swapAt(a, b)
+                }
             }
+            outcomes[checkInvariants(String(characters)), default: 0] += 1
+        }
+        #expect(outcomes["ok", default: 0] > 500, "\(outcomes)")
+        for kind in [
+            "tooDeep", "unexpectedToken", "expectedOperand", "unexpectedEnd",
+            "unclosedParenthesis", "unmatchedClosingParenthesis", "unknownIdentifier",
+            "wrongArgumentCount", "unexpectedCharacter", "invalidNumber",
+        ] {
+            #expect(outcomes[kind, default: 0] > 0, "never produced \(kind): \(outcomes)")
         }
     }
 
@@ -375,6 +465,6 @@ struct FormulaGrammarPropertyTests {
         let tree = (0..<499).reduce(num(1)) { inner, _ in .negate(inner) }
         #expect(parsed(minuses) == tree)
         let huge = String(repeating: "(", count: 1_000_000)
-        #expect(diagnostic(huge) == FormulaDiagnostic(.tooLong(length: 1_000_000), 500..<1_000_000))
+        #expect(diagnostic(huge) == FormulaDiagnostic(kind: .tooLong(length: 1_000_000), range: 500..<1_000_000))
     }
 }

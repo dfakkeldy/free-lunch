@@ -7,6 +7,11 @@
 /// The tree carries no source ranges, so two formulas that differ only in
 /// spacing or redundant parentheses compare equal. Ranges exist only on
 /// ``FormulaDiagnostic``.
+///
+/// ``FormulaParser/maxDepth`` limits parentheses and calls, not the height
+/// of this tree: a run of unary minuses or a long `1 + 1 + …` chain nests
+/// one level per operator. Only ``FormulaParser/maxLength`` bounds it, to
+/// fewer than 500 levels, which plain recursion handles.
 public indirect enum FormulaExpression: Sendable, Hashable {
     /// A literal. Always finite: the parser rejects a literal that rounds to
     /// infinity.
@@ -16,7 +21,8 @@ public indirect enum FormulaExpression: Sendable, Hashable {
     case negate(FormulaExpression)
     case binary(FormulaBinaryOperator, FormulaExpression, FormulaExpression)
     /// A function call. From the parser, `arguments.count` always equals
-    /// `function.arity`.
+    /// `function.arity`. The type does not enforce that, so code walking a
+    /// tree built some other way should check the count before indexing.
     case call(FormulaFunction, [FormulaExpression])
 }
 
@@ -35,7 +41,7 @@ public enum FormulaVariable: String, Sendable, Hashable, CaseIterable {
     /// Length of the window, days.
     case windowDays = "window_days"
     /// Intake-complete days in the window.
-    case completeDays = "n_complete"
+    case completeDayCount = "n_complete"
     /// Weigh-ins in the window.
     case weighInCount = "weigh_in_count"
     /// Energy density, kcal/kg (a per-version parameter).

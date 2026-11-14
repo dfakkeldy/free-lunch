@@ -21,21 +21,27 @@ records the code-level choices made here.
   one that underflows to zero is not.
 - **Unary minus is allowed**, any number of times, and binds tighter than
   `*` and `/` (`-2 * 3` is `(-2) * 3`). There is no unary plus. It is
-  `.negate` in the tree; the evaluator owns what it means.
+  `.negate` in the tree (`-0` is a negated zero, not a literal); the
+  evaluator owns what it means.
 - **Depth**: each parenthesis group and each call's argument list opens a
   level. 16 levels parse; the `(` that opens the 17th is the diagnostic's
   range. Unary minus does not count, and is parsed in a loop, so 499 of them
-  cost no stack.
+  cost no stack. The depth cap does not bound the tree's height: minus runs
+  and long operator chains nest one level per operator, so only the length
+  cap does (under 500 levels).
 - **Names** are case-sensitive and ASCII only. All eight §4 variables parse.
   A name in call position must be one of `min`, `max`, `clamp`, `abs`, and
   any other name must be a variable; both failures are `unknownIdentifier`
-  (so `rho(1)` and a bare `min` are unknown identifiers). Arity errors span
-  the whole call.
+  (so `rho(1)` and a bare `min` are unknown identifiers). Whitespace may sit
+  between a function name and its `(`. Arity errors span the whole call.
+  A name or literal that runs straight into a non-ASCII character (`rhó`)
+  reports that character, not a truncated name.
 - **Whitespace** is space, tab, LF, CR and CRLF only. Anything else,
   including a non-breaking space, is an unexpected character.
-- **One diagnostic**: the first problem reading left to right. A lexical
-  error is reported only when the parser reaches it, so `1 2 #` reports the
-  stray `2`. Running out of text where an operand belongs points at the
+- **One diagnostic**: length first, then the first problem reading left to
+  right, whatever its kind (an arity error beats a later depth error). A
+  lexical error is reported only when the parser reaches it, so `1 2 #`
+  reports the stray `2`. Running out of text where an operand belongs points at the
   token left dangling (`+` in `1 +`); running out inside a group points at
   the innermost unclosed `(`.
 - **The tree holds no source ranges**, so formulas that differ only in
