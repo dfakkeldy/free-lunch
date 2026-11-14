@@ -34,7 +34,7 @@ struct StoredDayIntakeTests {
         }
         try plate(1, day: 1, hour: 0, kcal: [300, 200])            // midnight belongs to day 1
         try plate(2, day: 1, hour: 23.5, kcal: [1_000])
-        try plate(3, day: 2, hour: 12, kcal: [1_800], source: .healthKitImport)
+        try store.upsertDietarySample(DietarySampleData(hkUUID: uid(3), date: E.noon(2), energy: Kilocalories(1_800), sourceBundleID: "example.food"))
         try plate(4, day: 3, hour: 12, kcal: [700], source: .watchQuickLog)
         try plate(5, day: 3, hour: 13, kcal: [999], logged: false)  // draft
         try plate(6, day: 4, hour: 12, kcal: [400], source: .phone)
@@ -71,7 +71,7 @@ struct StoredDayIntakeTests {
                 source: source
             ))
         }
-        try plate(1, hour: 8, kcal: 2_200, source: .healthKitImport)
+        try store.upsertDietarySample(DietarySampleData(hkUUID: uid(1), date: E.noon(6), energy: Kilocalories(2_200), sourceBundleID: "example.food"))
         try plate(2, hour: 9, kcal: 600, source: .phone)
         try plate(3, hour: 19, kcal: 900, source: .watchQuickLog)
 

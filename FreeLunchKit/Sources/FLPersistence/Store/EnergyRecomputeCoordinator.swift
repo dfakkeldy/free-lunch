@@ -40,10 +40,11 @@ extension EnergyBinding {
     /// and the "didn't track" marks. `weights` replaces the default series
     /// built from the store's corrected weight view.
     public static func key(
-        store: some MealStore & WeightStore & EnergySettingsStore,
+        store: some MealStore & DietaryStore & WeightStore & EnergySettingsStore,
         today: Date,
         historyFrom: Date,
         calendar: Calendar,
+        ownSourceBundleID: String = "com.freelunch.nutrition",
         weights: ((TrendSmoothing) throws -> TrendSeries)? = nil
     ) throws -> EnergyRecomputeKey {
         let settings = try store.energySettings()
@@ -51,7 +52,7 @@ extension EnergyBinding {
             ?? trendSeries(store: store, smoothing: settings.smoothing)
         return try key(
             store: store, today: today, historyFrom: historyFrom, weights: series,
-            schedule: settings.schedule, rateGoal: settings.rateGoal, calendar: calendar,
+            schedule: settings.schedule, rateGoal: settings.rateGoal, calendar: calendar, ownSourceBundleID: ownSourceBundleID,
             markedDidNotTrack: try store.didNotTrackDays(calendar: calendar)
         )
     }
@@ -60,11 +61,12 @@ extension EnergyBinding {
 /// Keeps the live energy series current against the persisted settings.
 /// Phone store only, like the settings it reads.
 @MainActor
-public final class EnergyRecomputeCoordinator<Store: MealStore & TargetStore & WeightStore & EnergySettingsStore> {
+public final class EnergyRecomputeCoordinator<Store: MealStore & TargetStore & DietaryStore & WeightStore & EnergySettingsStore> {
     /// One computation from a key. The default is ``EnergyBinding/recompute(store:key:calendar:)``.
     public typealias Compute = (EnergyRecomputeKey) throws -> LiveEnergy
 
     private let store: Store
+    private let ownSourceBundleID: String
     private let calendar: Calendar
     private let weights: ((TrendSmoothing) throws -> TrendSeries)?
     private let compute: Compute
@@ -77,12 +79,14 @@ public final class EnergyRecomputeCoordinator<Store: MealStore & TargetStore & W
     public init(
         store: Store,
         calendar: Calendar,
+        ownSourceBundleID: String = "com.freelunch.nutrition",
         today: Date,
         historyFrom: Date,
         weights: ((TrendSmoothing) throws -> TrendSeries)? = nil,
         compute: Compute? = nil
     ) {
         self.store = store
+        self.ownSourceBundleID = ownSourceBundleID
         self.calendar = calendar
         self.today = today
         self.historyFrom = historyFrom
@@ -97,7 +101,7 @@ public final class EnergyRecomputeCoordinator<Store: MealStore & TargetStore & W
     @discardableResult
     public func refresh() throws -> LiveEnergy {
         let key = try EnergyBinding.key(
-            store: store, today: today, historyFrom: historyFrom, calendar: calendar, weights: weights
+            store: store, today: today, historyFrom: historyFrom, calendar: calendar, ownSourceBundleID: ownSourceBundleID, weights: weights
         )
         if let latest, EnergyRecomputeReason.reasons(from: latest.key, to: key).isEmpty {
             let suggestion = try latest.calculatedTarget.flatMap {

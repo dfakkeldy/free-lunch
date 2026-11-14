@@ -126,3 +126,15 @@ fileprivate extension DietarySampleData {
         return lhs.hkUUID.uuidString < rhs.hkUUID.uuidString
     }
 }
+
+@MainActor
+extension DietaryStore where Self: WeightStore {
+    /// Correction-aware mirror totals, for the energy binding and summary cards.
+    public func reconstructedNutritionDays(from first: Date, through last: Date, calendar: Calendar,
+            ownSourceBundleID: String = "com.freelunch.nutrition") throws -> [ReconstructedNutritionDay] {
+        CorrectedNutritionView.derive(
+            samples: try dietarySamples(from: first, through: last, calendar: calendar, includingDeletedInHK: false),
+            corrections: try corrections(targetKind: .hkNutritionDay),
+            ownSourceBundleID: ownSourceBundleID, calendar: calendar)
+    }
+}

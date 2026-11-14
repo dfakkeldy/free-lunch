@@ -34,6 +34,11 @@ public protocol HealthStoreAdapter: AnyObject {
     /// without saying what the user chose (HealthKit doesn't).
     func requestAuthorization(toShare: Set<HealthDataType>, read: Set<HealthDataType>) async throws
 
+    func dietaryChanges(after anchor: HealthQueryAnchor?, limit: Int) async throws -> HealthDietaryChanges
+    func saveDietaryEnergy(_ energy: Kilocalories, at date: Date, mealID: UUID) async throws -> DietarySampleData
+    /// Deletes this app's writes for a meal, preserving a newly saved replacement.
+    func deleteDietaryEnergy(mealID: UUID, except hkUUID: UUID?) async throws
+
     // MARK: Weight (body mass)
 
     /// Weight samples added and deleted after `anchor`, at most `limit` per

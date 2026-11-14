@@ -101,6 +101,48 @@ final class MockHealthStore: HealthStoreAdapter {
         return Int(String(decoding: anchor.data, as: UTF8.self).dropFirst("anchor-".count))!
     }
 
+    enum DietaryChange {
+        case added(DietarySampleData)
+        case deleted(UUID)
+    }
+    var dietaryJournal: [DietaryChange] = []
+    var dietaryMealIDs: [UUID: UUID] = [:]
+
+    func dietaryChanges(after anchor: HealthQueryAnchor?, limit: Int) async throws -> HealthDietaryChanges {
+        if let error = queryError { queryError = nil; throw error }
+        let start = Self.position(of: anchor)
+        let page = dietaryJournal.dropFirst(start).prefix(limit)
+        var added: [DietarySampleData] = []
+        var deleted: [UUID] = []
+        for change in page {
+            switch change {
+            case .added(let sample):
+                if !readDenied || sample.sourceBundleID == ownBundleID { added.append(sample) }
+            case .deleted(let id): if !readDenied { deleted.append(id) }
+            }
+        }
+        return HealthDietaryChanges(added: added, deleted: deleted, anchor: Self.anchor(start + page.count))
+    }
+
+    func saveDietaryEnergy(_ energy: Kilocalories, at date: Date, mealID: UUID) async throws -> DietarySampleData {
+        if let error = saveError { saveError = nil; throw error }
+        guard authorizationStatus(for: .dietaryEnergyConsumed) == .sharingAuthorized else {
+            throw HealthAccessError.authorizationDenied(.dietaryEnergyConsumed)
+        }
+        let sample = DietarySampleData(hkUUID: UUID(), date: date, energy: energy, sourceBundleID: ownBundleID)
+        dietaryMealIDs[sample.hkUUID] = mealID
+        dietaryJournal.append(.added(sample))
+        return sample
+    }
+
+    func deleteDietaryEnergy(mealID: UUID, except hkUUID: UUID?) async throws {
+        if let error = deleteError { deleteError = nil; throw error }
+        for (id, meal) in dietaryMealIDs where meal == mealID && id != hkUUID {
+            dietaryJournal.append(.deleted(id))
+            dietaryMealIDs[id] = nil
+        }
+    }
+
     // MARK: HealthStoreAdapter
 
     func authorizationStatus(for type: HealthDataType) -> HealthAuthorizationStatus {

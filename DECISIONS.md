@@ -3,6 +3,25 @@
 Newest first. Product decisions live in the private planning repo; this log
 records the code-level choices made here.
 
+## 2026-11-15 — Dietary mirror and native intake boundary
+
+- Dietary energy samples anchor the nutrition mirror. Every source is cached;
+  reconstruction drops deleted rows and this app's source before grouping by
+  calendar day. Macros remain unknown when energy samples carry none.
+- A logged native meal selects native intake for its whole day. With no native
+  meal, corrected mirror totals supply reconstruction. The frozen
+  `healthKitImport` meal source is legacy provenance only, excluded from energy
+  inputs; new nutrition imports never create meals.
+- Nutrition corrections name a Gregorian `yyyy-MM-dd` civil day in the reader's
+  time zone. Replacement payloads contain kcal and optional gram totals; the
+  latest valid correction wins by creation date, then UUID. Deleted mirror
+  rows cannot be restored by a correction.
+- The phone dietary service persists meals first and exports energy best effort.
+  External UUID metadata links writes to meal IDs without a schema field.
+  Replacement writes save before deleting older linked samples; export failure
+  preserves local logging. Callers use `writeMeal` after persisting edits or
+  watch delivery. No HealthKit type enters the energy engine.
+
 ## 2026-11-03 — Exposure curve math
 
 - `ExposureCurve` (FLCore) sums one Bateman curve per logged shot, scaled
