@@ -153,6 +153,10 @@ private let rejectRows: [RejectRow] = [
     RejectRow(source: "rh\u{F3}", kind: .unexpectedCharacter, range: 2..<3, note: "an accented letter ending a name"),
     RejectRow(source: "rho\u{301}", kind: .unexpectedCharacter, range: 2..<4, note: "a combining mark ending a name"),
     RejectRow(source: "21\u{301}", kind: .unexpectedCharacter, range: 1..<3, note: "a combining mark ending a literal"),
+    RejectRow(source: "rho\u{E9}", kind: .unexpectedCharacter, range: 3..<4, note: "a known name glued to an accent"),
+    RejectRow(source: "1 2\u{E9}", kind: .unexpectedToken, range: 2..<3, note: "a glued accent does not hide an earlier error"),
+    RejectRow(source: "1.2.3\u{E9}", kind: .invalidNumber, range: 0..<5, note: "a glued accent does not hide a bad literal"),
+    RejectRow(source: "foo \u{E9}", kind: .unknownIdentifier("foo"), range: 0..<3, note: "a spaced accent is not glued"),
     RejectRow(source: "rho\u{A0}+ 1", kind: .unexpectedCharacter, range: 3..<4, note: "a non-breaking space"),
     RejectRow(source: "1 ^ 2", kind: .unexpectedCharacter, range: 2..<3, note: "no power operator"),
 
@@ -359,6 +363,7 @@ private let fuzzPieces = [
     "1", "0.5", "42", "rho", "trend_delta", "Rho", "foo", "min", "max", "clamp", "abs",
     "(", ")", ",", "+", "-", "*", "/", " ", "\t", "\r\n", ".", "e", "#", "😀", "👍🏽",
     "\u{A0}", "\u{301}", "é", "_", "9", "^", "((((((((((", "))", "1e400",
+    String(repeating: "9", count: 320),
 ]
 
 /// Parses `text`, checks what must hold for any input, and names the
@@ -419,6 +424,8 @@ struct FormulaGrammarPropertyTests {
         #expect(outcomes.keys.contains("unexpectedCharacter"))
         #expect(outcomes.keys.contains("invalidNumber"))
         #expect(outcomes.keys.contains("unknownIdentifier"))
+        #expect(outcomes.keys.contains("numberOutOfRange"))
+        #expect(outcomes.keys.contains("tooLong"))
     }
 
     @Test("one-edit mutations of valid formulas never trap and keep the invariants")

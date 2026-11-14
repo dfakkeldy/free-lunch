@@ -34,8 +34,10 @@ records the code-level choices made here.
   any other name must be a variable; both failures are `unknownIdentifier`
   (so `rho(1)` and a bare `min` are unknown identifiers). Whitespace may sit
   between a function name and its `(`. Arity errors span the whole call.
-  A name or literal that runs straight into a non-ASCII character (`rhó`)
-  reports that character, not a truncated name.
+  An unknown name that runs straight into a non-ASCII character (`rhó`
+  lexes as `rh` then `ó`) reports that character, not the truncated name.
+  Nothing else changes: `1 2é` still reports the stray `2`, and `foo#` still
+  reports `foo`.
 - **Whitespace** is space, tab, LF, CR and CRLF only. Anything else,
   including a non-breaking space, is an unexpected character.
 - **One diagnostic**: length first, then the first problem reading left to

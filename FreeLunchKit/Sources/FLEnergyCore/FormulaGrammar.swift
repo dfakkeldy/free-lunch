@@ -76,6 +76,9 @@ struct FormulaToken: Equatable {
         case leftParen, rightParen, comma
         /// A lexical error, reported when the parser reaches it.
         case invalid(FormulaDiagnostic.Kind)
+        /// A non-ASCII character, reported as `unexpectedCharacter`. Kept
+        /// apart from `.invalid` so the parser can tell `rhó` from `rh#`.
+        case nonASCII
         case end
     }
 
@@ -107,7 +110,7 @@ enum FormulaLexer {
         while index < characters.count {
             let (ascii, start, end) = characters[index]
             guard let byte = ascii else {
-                tokens.append(FormulaToken(kind: .invalid(.unexpectedCharacter), range: start..<end))
+                tokens.append(FormulaToken(kind: .nonASCII, range: start..<end))
                 index += 1
                 continue
             }
@@ -128,15 +131,6 @@ enum FormulaLexer {
                     text.append(next)
                     last = characters[index].end
                     index += 1
-                }
-                if index < characters.count, characters[index].ascii == nil {
-                    // A word running straight into a non-ASCII character
-                    // (`rhó` is `rh` then `ó`): blame the character, not a
-                    // truncated name.
-                    let bad = characters[index]
-                    tokens.append(FormulaToken(kind: .invalid(.unexpectedCharacter), range: bad.start..<bad.end))
-                    index += 1
-                    continue
                 }
                 let word = String(decoding: text, as: UTF8.self)
                 let kind: FormulaToken.Kind = isNumber ? numberKind(word) : .identifier(word)
@@ -214,6 +208,7 @@ private struct Parser {
         switch current.kind {
         case .end: return expression
         case .invalid(let kind): throw FormulaDiagnostic(kind: kind, range: current.range)
+        case .nonASCII: throw FormulaDiagnostic(kind: .unexpectedCharacter, range: current.range)
         case .rightParen: throw FormulaDiagnostic(kind: .unmatchedClosingParenthesis, range: current.range)
         default: throw FormulaDiagnostic(kind: .unexpectedToken, range: current.range)
         }
@@ -279,6 +274,13 @@ private struct Parser {
                 return try call(function, name: token)
             }
             guard let variable = FormulaVariable(rawValue: name) else {
+                // A name glued to a non-ASCII character (`rhó` lexes as `rh`
+                // then `ó`) is likely one accented word: blame the
+                // character, not the truncated name.
+                let next = tokens[index + 1]
+                if next.kind == .nonASCII, next.range.lowerBound == token.range.upperBound {
+                    throw FormulaDiagnostic(kind: .unexpectedCharacter, range: next.range)
+                }
                 throw FormulaDiagnostic(kind: .unknownIdentifier(name), range: token.range)
             }
             advance()
@@ -299,6 +301,9 @@ private struct Parser {
 
         case .invalid(let kind):
             throw FormulaDiagnostic(kind: kind, range: token.range)
+
+        case .nonASCII:
+            throw FormulaDiagnostic(kind: .unexpectedCharacter, range: token.range)
 
         case .rightParen:
             throw FormulaDiagnostic(kind: depth == 0 ? .unmatchedClosingParenthesis : .expectedOperand, range: token.range)
@@ -353,6 +358,7 @@ private struct Parser {
         switch current.kind {
         case .end: FormulaDiagnostic(kind: .unclosedParenthesis, range: openToken.range)
         case .invalid(let kind): FormulaDiagnostic(kind: kind, range: current.range)
+        case .nonASCII: FormulaDiagnostic(kind: .unexpectedCharacter, range: current.range)
         default: FormulaDiagnostic(kind: .unexpectedToken, range: current.range)
         }
     }

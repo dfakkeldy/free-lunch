@@ -28,7 +28,8 @@ public struct FormulaDiagnostic: Error, Sendable, Hashable {
         case tooDeep
         /// A character outside the grammar's alphabet (`#`, an emoji, a
         /// non-breaking space, an accented letter). The range is that one
-        /// character, even when it follows a name directly (`ó` in `rhó`).
+        /// character. It also replaces ``unknownIdentifier`` when the unknown
+        /// name runs straight into a non-ASCII character (`ó` in `rhó`).
         case unexpectedCharacter
         /// A run starting with a digit or `.` that is not digits with an
         /// optional `.digits` fraction: `1.`, `.5`, `1.2.3`, `1e3`, `2rho`.
