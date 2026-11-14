@@ -126,8 +126,8 @@ public struct HealthDietaryChanges: Sendable, Hashable {
     public let added: [DietarySampleData]
     /// HealthKit UUIDs of samples deleted since the anchor.
     public let deleted: [UUID]
-    /// Added samples the adapter couldn't express as a weight (a value no
-    /// `Kilograms` holds). They are left out of `added` but still count
+    /// Added samples the adapter couldn't express as a dietary energy (a value no
+    /// `Kilocalories` holds). They are left out of `added` but still count
     /// toward the page, so a page of only these doesn't end the pass.
     public let unreadable: Int
     /// The position after this page; pass it to the next query.

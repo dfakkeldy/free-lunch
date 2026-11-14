@@ -46,6 +46,40 @@ struct HealthDietarySyncTests {
         #expect(try store.dayIntakes(through: E.day(2), calendar: E.calendar, ownSourceBundleID: health.ownSourceBundleID).isEmpty)
     }
 
+    @Test("failed replacement save preserves old export and a later retry replaces it")
+    func failedEdit() async throws {
+        let store = try makeInMemoryStore()
+        let health = MockHealthStore()
+        health.sharing[.dietaryEnergyConsumed] = .sharingAuthorized
+        let sync = HealthDietarySync(health: health, dietary: store, meals: store, anchors: MemoryAnchorStore())
+        try store.createMeal(MealEntryData(id: uid(811), createdAt: E.noon(2), source: .phone))
+        var meal = try await sync.logMeal(id: uid(811), at: E.noon(2))
+        let original = health.dietaryMealIDs.keys.first
+        meal = try store.setLoggedAt(E.noon(3), mealID: meal.id)
+        health.saveError = HealthAccessError.temporarilyUnavailable
+        await sync.writeMeal(meal)
+        #expect(health.dietaryMealIDs.keys.first == original)
+        #expect(try store.meal(id: meal.id)?.loggedAt == E.noon(3))
+        await sync.writeMeal(meal)
+        #expect(health.dietaryMealIDs.count == 1)
+        #expect(health.dietaryMealIDs.keys.first != original)
+    }
+
+    @Test("mirror and correction changes invalidate the coordinator key")
+    func recompute() throws {
+        let store = try makeInMemoryStore()
+        let coordinator = EnergyRecomputeCoordinator(store: store, calendar: E.calendar,
+            ownSourceBundleID: "example.own", today: E.day(3), historyFrom: E.day(1))
+        let first = try coordinator.refresh()
+        let sample = DietarySampleData(hkUUID: uid(812), date: E.noon(2), energy: Kilocalories(200), sourceBundleID: "example.food")
+        try store.upsertDietarySample(sample)
+        let imported = try coordinator.refresh()
+        #expect(imported.key.intake != first.key.intake)
+        try store.addCorrection(CorrectionData(createdAt: E.day(3), targetKind: .hkNutritionDay,
+            targetID: CorrectedNutritionView.dayKey(E.day(2), calendar: E.calendar), action: .exclude))
+        #expect(try coordinator.refresh().key.intake.isEmpty)
+    }
+
     @Test("denied export leaves native logging intact")
     func denied() async throws {
         let store = try makeInMemoryStore()
@@ -55,6 +89,14 @@ struct HealthDietarySyncTests {
         _ = try await sync.logMeal(id: uid(804), at: E.noon(2))
         #expect(try store.meal(id: uid(804))?.state == .logged)
         #expect(health.dietaryJournal.isEmpty)
+    }
+
+    @Test("legacy imported meals cannot manufacture reconstructed history")
+    func legacySource() throws {
+        let store = try makeInMemoryStore()
+        try store.createMeal(MealEntryData(id: uid(813), state: .logged, createdAt: E.noon(2),
+            loggedAt: E.noon(2), source: .healthKitImport))
+        #expect(try store.dayIntakes(through: E.day(2), calendar: E.calendar).isEmpty)
     }
 
     @Test("corrections replace and exclude totals, validate payloads, and leave native days alone")
@@ -74,5 +116,11 @@ struct HealthDietarySyncTests {
         }
         try store.addCorrection(CorrectionData(createdAt: E.day(4), targetKind: .hkNutritionDay, targetID: key, action: .exclude))
         #expect(try store.dayIntakes(through: E.day(2), calendar: E.calendar).isEmpty)
+        try store.createMeal(MealEntryData(id: uid(814), state: .logged, createdAt: E.noon(2),
+            loggedAt: E.noon(2), items: [MealItemData(id: uid(815), order: 0, foodID: nil,
+                adHocName: "Synthetic food", quantity: Grams(100), nutrition: E.kcal(600), provenance: .typed)], source: .phone))
+        let native = try store.dayIntakes(through: E.day(2), calendar: E.calendar)
+        #expect(native.first?.intakeKcal == 600)
+        #expect(native.first?.evidence.hasReconstructedDietaryEnergy == false)
     }
 }
