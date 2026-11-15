@@ -15,6 +15,7 @@ import SwiftData
 @MainActor
 public final class SwiftDataStore: FreeLunchStore {
     let context: ModelContext
+    var plannerTransactionActive = false
     private let kind: FreeLunchStoreKind?
 
     /// Internal: `ModelContainer` never appears in a public signature (see
@@ -737,6 +738,8 @@ public final class SwiftDataStore: FreeLunchStore {
     // MARK: - Helpers
 
     func commit() throws {
+        // The outer planner transaction saves or rolls back all staged writes.
+        if plannerTransactionActive { return }
         do {
             try context.save()
         } catch {

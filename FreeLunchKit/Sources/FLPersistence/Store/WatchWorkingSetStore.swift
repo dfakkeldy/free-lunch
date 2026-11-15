@@ -9,6 +9,7 @@ public enum WatchOutboxKind: String, Sendable, Hashable, Codable, CaseIterable {
     case shot
     case meal
     case hungerEdit
+    case mealAppend
 }
 
 /// A watch-created record that remains local until its phone acknowledgement.
@@ -57,6 +58,7 @@ public protocol WatchWorkingSetStore: AnyObject {
 
     func enqueueShot(_ shot: ShotEventData, queuedAt: Date) throws
     func enqueueMeal(id: UUID, payload: Data, queuedAt: Date) throws
+    func enqueueMealAppend(id: UUID, mealID: UUID, payload: Data, queuedAt: Date) throws
     @discardableResult
     func enqueueHungerEdit(_ edit: WatchHungerEdit) throws -> UUID
     /// Pending records, ordered by queue time and then acknowledgement handle.
@@ -134,6 +136,16 @@ extension SwiftDataStore: WatchWorkingSetStore {
             queuedAt: queuedAt,
             payload: payload
         ))
+        try commit()
+    }
+
+    public func enqueueMealAppend(id: UUID, mealID: UUID, payload: Data, queuedAt: Date) throws {
+        try requireStoreKind(.watch, operation: "enqueueMealAppend")
+        guard try watchOutboxRecord(id: id) == nil else {
+            throw FreeLunchStoreError.duplicateID(id)
+        }
+        context.insert(WatchOutboxRecord(id: id, kind: .mealAppend, subjectID: mealID,
+                                         queuedAt: queuedAt, payload: payload))
         try commit()
     }
 

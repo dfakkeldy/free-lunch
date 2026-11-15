@@ -1,3 +1,11 @@
+## 2026-11-15 — Watch quick logging contract
+
+- A food tap at exactly ten minutes after the preceding watch food tap joins the same meal. The anchor survives acknowledgement in UserDefaults.
+- WatchMealPayload carries meal identity, state, source, dates, hunger and item identity, food identity and grams. The phone resolves catalog nutrition when applying it. For appends only mealID and items are authoritative; other meal fields must not overwrite the original. Appends have their own outbox identity and name the meal as subject; old phone builds cannot decode the new kind and do not acknowledge it.
+- Food taps stay in memory for five seconds before enqueueing so undo cannot reach the phone. A force-quit or system termination before the hold is committed loses the tap. The app must call `commitPending` on becoming inactive, ending undo early; it must retry a failed flush. Subsequent activation retries persisted records.
+- The watch tracks only drafts it created. The phone does not report draft closure, so a retained reference can send a later hunger edit to a draft already logged or deleted on the phone. A caller can clear it when closure is known, but resolving this reliably needs phone-to-watch draft state; this remains an open product and sync issue.
+- Phone application of a logged item must also update catalog usage if it should affect recent-food ranking; adding an item alone does not do so.
+
 # Decisions
 
 Newest first. Product decisions live in the private planning repo; this log
@@ -18,6 +26,22 @@ releases.
 WidgetKit keeps the static complication in its gallery when the lane is off;
 the complication renders empty until a projection is available. The phone
 publisher must supply the interval for immediate local projection.
+
+## 2026-11-15 — Planner service choices
+
+- Skipping a shot creates one replacement one calendar interval after the later of the current projection and the skipped reminder. Reconciliation preserves it until a shot event changes the projection.
+- A planned meal's name and optional note prefill the draft's note, on separate lines. Its pending link identifies that draft; only logging the linked draft completes the plan. Discarding clears the link, and an unlogged draft does not prevent end-of-day lapse.
+- Planner operations return reminder changes for a notification integration to apply. Callers route shot and linked-draft lifecycle events through the service. Multi-record changes commit together; lapse also recognizes an already-logged linked draft. A lapsed draft remains available as an independent draft. Backfilled shots that do not change the projection do not claim a reminder; deleting a linked shot or changing its medication clears the link and marks its old plan skipped. Callers route profile changes through `profileChanged`.
+
+## 2026-11-15 — Timeline history window
+
+The timeline shows every day in the preceding 30 calendar days, including
+empty days, and older days with visible records or a didn't-track mark.
+This makes the empty state available without manufacturing an unlimited list
+of empty dates. Drafts stay under Today until they are logged. Older
+reconstructed-only days will appear when their summary cards are implemented.
+The schema has no selected medication profile; the next-dose card uses the
+unarchived profile of the most recent shot until a selection exists.
 
 ## 2026-11-15 — Weight lane series
 

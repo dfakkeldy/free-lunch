@@ -22,12 +22,14 @@
 		3BE214ADBE29FAC13C2F3A9C /* FreeLunchPhoneApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D35D635BB6BE1AE80806C716 /* FreeLunchPhoneApp.swift */; };
 		3F7D9273F20D5DCDA2753831 /* SettingsGear.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81C01FF911A3436E718F736 /* SettingsGear.swift */; };
 		43A055386694F0BBBB007DA3 /* PostLogSurfaceUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 573A3D367D28DA6DF4ABA0E1 /* PostLogSurfaceUITests.swift */; };
+		50F8DE366DF095BC1D276E01 /* TimelineDayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CE29C3CB720FC134F388ACC /* TimelineDayView.swift */; };
 		5AC90D8DA1A9487C9C65D8E4 /* FLEnergyCore in Frameworks */ = {isa = PBXBuildFile; productRef = 6A9369D5ADF9AE106721C644 /* FLEnergyCore */; };
 		5AE3A82545AE1A49BE7E732D /* FreeLunchPhoneUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD4E237E1E697069AAD7F1D6 /* FreeLunchPhoneUITests.swift */; };
 		5B7CC30E5F25DCDB99A066F9 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 689D919131D523E880B8E445 /* ContentView.swift */; };
 		635D2218BA2496CD3741F570 /* PlateEntrySheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = C18D1936E5DA5174ABA8BD64 /* PlateEntrySheets.swift */; };
 		6D57620880ECAB84EE6D848E /* FreeLunchWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 01F26E05BC6A8B267FCE56C2 /* FreeLunchWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		6FFF38B003199DC2CE3E305D /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7E9260BF60A9ADD853A4EB1 /* LibraryView.swift */; };
+		7692D01C29AD2CD55587BB54 /* TimelineFeedUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F81E9F9E40E03783BC5F81C6 /* TimelineFeedUITests.swift */; };
 		7966664B082EB279597FD10B /* FreeLunchWatchComplication.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = DE33F0C6D4F972C320F304E8 /* FreeLunchWatchComplication.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		7FD24E5906A54284CEF27A8E /* FreeLunchWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E52848070211DD91FA758AF /* FreeLunchWatchApp.swift */; };
 		84FB60DF27749192488FE3B1 /* ScaleSessionViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D5C97B8732CC003AF128426 /* ScaleSessionViews.swift */; };
@@ -112,6 +114,7 @@
 		8E52848070211DD91FA758AF /* FreeLunchWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeLunchWatchApp.swift; sourceTree = "<group>"; };
 		8F32FDE49239668EFDAD49E1 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		94F50AC650A166908A40143A /* FreeLunchWatchUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FreeLunchWatchUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		9CE29C3CB720FC134F388ACC /* TimelineDayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineDayView.swift; sourceTree = "<group>"; };
 		9E5485E8BD770E8120F8AE4B /* KitLinkage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KitLinkage.swift; sourceTree = "<group>"; };
 		A6442E787AEE1F7E0C7F8974 /* FreeLunchWatchComplication.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FreeLunchWatchComplication.entitlements; sourceTree = "<group>"; };
 		BC3A968A6EFB87BC608D509F /* SettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSheet.swift; sourceTree = "<group>"; };
@@ -128,6 +131,7 @@
 		EC95C8E3D62241A4CE6C28AD /* InsightsStubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightsStubView.swift; sourceTree = "<group>"; };
 		EF4E7858E9E417CA0CED748F /* PostLogSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostLogSheet.swift; sourceTree = "<group>"; };
 		F293E4DAA9D599DB50DA1388 /* FreeLunchPhoneUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = FreeLunchPhoneUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		F81E9F9E40E03783BC5F81C6 /* TimelineFeedUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineFeedUITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -188,6 +192,7 @@
 				8D5C97B8732CC003AF128426 /* ScaleSessionViews.swift */,
 				E81C01FF911A3436E718F736 /* SettingsGear.swift */,
 				BC3A968A6EFB87BC608D509F /* SettingsSheet.swift */,
+				9CE29C3CB720FC134F388ACC /* TimelineDayView.swift */,
 				50C603EB2609C5735D63C113 /* TimelineStubView.swift */,
 			);
 			path = FreeLunchPhone;
@@ -214,6 +219,7 @@
 				582BBD510237D8253DD42500 /* LateLoggingUITests.swift */,
 				573A3D367D28DA6DF4ABA0E1 /* PostLogSurfaceUITests.swift */,
 				097AA482F6C7090BD6213B37 /* ScaleSessionUITests.swift */,
+				F81E9F9E40E03783BC5F81C6 /* TimelineFeedUITests.swift */,
 			);
 			path = FreeLunchPhoneUITests;
 			sourceTree = "<group>";
@@ -480,6 +486,7 @@
 				E574217A3F1CD32EF984CCF9 /* LateLoggingUITests.swift in Sources */,
 				43A055386694F0BBBB007DA3 /* PostLogSurfaceUITests.swift in Sources */,
 				966400563BE72E35C8C68069 /* ScaleSessionUITests.swift in Sources */,
+				7692D01C29AD2CD55587BB54 /* TimelineFeedUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -500,6 +507,7 @@
 				84FB60DF27749192488FE3B1 /* ScaleSessionViews.swift in Sources */,
 				3F7D9273F20D5DCDA2753831 /* SettingsGear.swift in Sources */,
 				2A0D87DB450DE9A4285B4CEA /* SettingsSheet.swift in Sources */,
+				50F8DE366DF095BC1D276E01 /* TimelineDayView.swift in Sources */,
 				B7C1960A2883243CCFD98516 /* TimelineStubView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

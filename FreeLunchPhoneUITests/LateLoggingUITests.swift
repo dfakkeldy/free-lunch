@@ -52,8 +52,10 @@ final class LateLoggingUITests: XCTestCase {
         // Done: back on the timeline, where today has nothing logged.
         app.buttons["postLog.done"].tap()
         XCTAssertTrue(remaining.waitForNonExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["phone.emptyState.heading"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons["timeline.loggedRow"].exists)
+        XCTAssertTrue(app.buttons["timeline.loggedRow"].firstMatch.waitForExistence(timeout: 5))
+        let yesterday = app.staticTexts["Yesterday"]
+        XCTAssertTrue(yesterday.exists)
+        XCTAssertGreaterThan(app.buttons["timeline.loggedRow"].firstMatch.frame.minY, yesterday.frame.minY)
     }
 
     @MainActor
@@ -106,8 +108,10 @@ final class LateLoggingUITests: XCTestCase {
 
         // Today no longer holds it.
         app.navigationBars["Logged plate"].buttons.element(boundBy: 0).tap()
-        XCTAssertTrue(app.staticTexts["phone.emptyState.heading"].waitForExistence(timeout: 10))
-        XCTAssertFalse(app.buttons["timeline.loggedRow"].exists)
+        XCTAssertTrue(app.buttons["timeline.loggedRow"].firstMatch.waitForExistence(timeout: 10))
+        let yesterday = app.staticTexts["Yesterday"]
+        XCTAssertTrue(yesterday.exists)
+        XCTAssertGreaterThan(app.buttons["timeline.loggedRow"].firstMatch.frame.minY, yesterday.frame.minY)
     }
 
     // MARK: Helpers
