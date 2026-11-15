@@ -119,8 +119,18 @@ final class ScaleSessionUITests: XCTestCase {
         reveal(start, in: app)
         XCTAssertTrue(start.waitForExistence(timeout: 10))
         XCTAssertEqual(start.label, "Start cumulative scale session")
+        // Leave room above the plate's fixed Log bar, which can overlap a
+        // just-visible row at the largest text size.
+        let list = app.collectionViews.firstMatch
+        if start.frame.midY > app.windows.firstMatch.frame.maxY - 160 {
+            let lower = list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.65))
+            let upper = list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35))
+            lower.press(forDuration: 0.05, thenDragTo: upper)
+        }
         start.tap()
-        XCTAssertTrue(app.buttons["plate.scale.end"].waitForExistence(timeout: 5))
+        let end = app.buttons["plate.scale.end"]
+        reveal(end, in: app)
+        XCTAssertTrue(end.waitForExistence(timeout: 5))
     }
 
     @MainActor

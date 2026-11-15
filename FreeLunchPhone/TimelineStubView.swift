@@ -1,10 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// A stand-in for the timeline: the entry point to the plate screen until
-// the timeline section (spec §7) is frozen. It carries the primary Log
-// action and the settings gear, lists drafts (visually pending, with the
-// >24 h nudge) and today's logged plates, and hosts the post-log sheet so
-// that dismissing the sheet lands here in one gesture (spec §2 acceptance
-// #7).
+// Timeline feed and plate navigation.
 import FLCore
 import FLPlate
 import SwiftUI
@@ -42,32 +37,45 @@ struct TimelineStubView: View {
         }
     }
 
-    @ViewBuilder
     private var content: some View {
-        if model.drafts.isEmpty && model.loggedTodayMeals.isEmpty {
-            EmptyTimelineView(model: model)
-        } else {
+        let feed = model.timeline
+        return ScrollViewReader { proxy in
             List {
-                if !model.drafts.isEmpty {
-                    Section("Drafts") {
-                        ForEach(model.drafts) { meal in
-                            Button { model.open(meal) } label: {
-                                MealSummaryRow(model: model, meal: meal)
-                            }
-                            .foregroundStyle(.primary)
-                            .accessibilityIdentifier("timeline.draftRow")
+                if model.nextDose != nil || !feed.upcoming.isEmpty {
+                    Section("Upcoming") {
+                        if let status = model.nextDose {
+                            NextDoseRow(status: status)
+                        }
+                        ForEach(feed.upcoming) { item in
+                            TimelineCard(model: model, item: item)
                         }
                     }
+                    .accessibilityIdentifier("timeline.upcoming")
                 }
-                if !model.loggedTodayMeals.isEmpty {
-                    Section("Logged today") {
-                        ForEach(model.loggedTodayMeals) { meal in
-                            Button { model.open(meal) } label: {
-                                MealSummaryRow(model: model, meal: meal)
-                            }
-                            .foregroundStyle(.primary)
-                            .accessibilityIdentifier("timeline.loggedRow")
+                Section {
+                    TimelineDayHeader(model: model, day: feed.today.day, isToday: true)
+                        .id("timeline.today")
+                    if feed.today.items.isEmpty && model.meals.isEmpty {
+                        EmptyTimelineView(model: model)
+                    }
+                    ForEach(feed.today.items) { item in
+                        TimelineCard(model: model, item: item)
+                    }
+                }
+                ForEach(feed.past) { day in
+                    Section {
+                        ForEach(day.items) { item in
+                            TimelineCard(model: model, item: item)
                         }
+                    } header: {
+                        TimelineDayHeader(model: model, day: day.day, isToday: false)
+                    }
+                }
+            }
+            .onChange(of: model.flow.postLog != nil) { _, shown in
+                if !shown {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        proxy.scrollTo("timeline.today", anchor: .top)
                     }
                 }
             }
@@ -127,7 +135,7 @@ private struct EmptyTimelineView: View {
     }
 }
 
-private struct MealSummaryRow: View {
+struct MealSummaryRow: View {
     let model: PhoneAppModel
     let meal: MealEntryData
 
@@ -148,7 +156,7 @@ private struct MealSummaryRow: View {
     }
 
     private var title: String {
-        let names = model.rows(for: meal).map(\.name)
+        let names = model.rows(for: meal).prefix(3).map(\.name)
         if names.isEmpty { return "Empty plate" }
         return names.joined(separator: ", ")
     }
