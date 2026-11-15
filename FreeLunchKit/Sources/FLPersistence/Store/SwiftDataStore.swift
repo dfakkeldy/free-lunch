@@ -738,6 +738,7 @@ public final class SwiftDataStore: FreeLunchStore {
     // MARK: - Helpers
 
     func commit() throws {
+        // The outer planner transaction saves or rolls back all staged writes.
         if plannerTransactionActive { return }
         do {
             try context.save()

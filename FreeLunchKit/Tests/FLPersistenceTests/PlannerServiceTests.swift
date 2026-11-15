@@ -33,9 +33,16 @@ import Testing
         let late = ShotEventData(takenAt: start.addingTimeInterval(900_000), dose: Milligrams(1), medicationID: profile.id)
         let changes = try service.logShot(late, activeProfile: profile)
         #expect(changes.count == 2)
+        #expect(changes[0].notificationID == pending.notificationID)
+        #expect(changes[0].newTime == nil)
+        #expect(changes[1].newTime == NextDose.nextDoseAt(shots: [shot, late], activeProfile: profile, calendar: calendar))
+        #expect(changes[1].notificationID != nil)
         #expect(try store.plannedShots().first { $0.id == pending.id }?.fulfilledBy == late.id)
         let next = try #require(store.plannedShots().first { $0.status == .pending })
         #expect(next.plannedAt == NextDose.nextDoseAt(shots: [shot, late], activeProfile: profile, calendar: calendar))
+        let backfill = ShotEventData(takenAt: start.addingTimeInterval(-3600), dose: Milligrams(1), medicationID: profile.id)
+        #expect(try service.logShot(backfill, activeProfile: profile).isEmpty)
+        #expect(try store.plannedShots().first { $0.status == .pending }?.id == next.id)
         var edited = late
         edited.takenAt = late.takenAt.addingTimeInterval(3600)
         let reschedule = try service.editShot(edited, activeProfile: profile)
@@ -44,6 +51,10 @@ import Testing
         #expect(reschedule[0].oldTime == next.plannedAt)
         #expect(reschedule[0].notificationID == next.notificationID)
         #expect(try store.plannedShots().filter { $0.status == .pending }.count == 1)
+        _ = try service.deleteShot(id: late.id, activeProfile: profile)
+        let formerlyDone = try #require(store.plannedShots().first { $0.id == pending.id })
+        #expect(formerlyDone.status == .skipped)
+        #expect(formerlyDone.fulfilledBy == nil)
     }
 
     @Test func explicitMealAndDiscard() throws {
@@ -54,7 +65,7 @@ import Testing
         try store.createPlannedMeal(plan)
         let unrelated = MealEntryData(createdAt: date, source: .phone)
         try store.createMeal(unrelated)
-        _ = try service.logMeal(id: unrelated.id, at: date)
+        _ = try PlateLifecycleService(store: store).log(mealID: unrelated.id, at: date)
         #expect(try store.plannedMeals()[0].fulfilledBy == nil)
         let draft = try service.startPlannedMeal(id: plan.id)
         #expect(draft.note == "Lunch\nExample")
