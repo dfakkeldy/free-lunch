@@ -24,6 +24,7 @@ final class PhoneAppModel {
         /// Seed one synthetic plate logged at this time yesterday, so a
         /// move into yesterday has a non-empty day to join.
         static let seedLoggedYesterday = "-FLUITestSeedLoggedYesterday"
+        static let seedTimeline = "-FLUITestSeedTimeline"
     }
 
     private(set) var flow = PlateFlow()
@@ -39,6 +40,17 @@ final class PhoneAppModel {
     private(set) var lastMove: LoggedAtMoveSummary?
     var errorMessage: String?
 
+    private(set) var timelineShots: [ShotEventData] = []
+    private(set) var timelineWeights: [CorrectedWeightSample] = []
+    private(set) var timelineEffects: [SideEffectEntryData] = []
+    private(set) var timelineJournal: [JournalEntryData] = []
+    private(set) var timelinePlannedShots: [PlannedShotData] = []
+    private(set) var timelinePlannedMeals: [PlannedMealData] = []
+    private(set) var markedDays: Set<Date> = []
+    private(set) var intakeEvidence: [Date: DayIntakeEvidence] = [:]
+    private(set) var trendPoints: [TrendPoint] = []
+    private(set) var nextDose: NextDoseStatus?
+    private var energyCoordinator: EnergyRecomputeCoordinator<SwiftDataStore>?
     private let store: SwiftDataStore?
     private let service: PlateLifecycleService?
     private let calendar: Calendar
@@ -51,6 +63,10 @@ final class PhoneAppModel {
             let store = try SwiftDataStore.phone(at: location)
             self.store = store
             service = PlateLifecycleService(store: store)
+            let now = Date()
+            energyCoordinator = EnergyRecomputeCoordinator(store: store, calendar: calendar,
+                ownSourceBundleID: Bundle.main.bundleIdentifier ?? "com.freelunch.nutrition",
+                today: now, historyFrom: calendar.date(byAdding: .day, value: -30, to: now)!)
         } catch {
             store = nil
             service = nil
@@ -77,6 +93,7 @@ final class PhoneAppModel {
         if arguments.contains(LaunchArgument.seedLoggedYesterday) {
             seedSyntheticLoggedYesterday()
         }
+        if arguments.contains(LaunchArgument.seedTimeline) { seedSyntheticTimeline() }
         reload()
     }
 
@@ -106,6 +123,35 @@ final class PhoneAppModel {
         let grouped = Dictionary(grouping: earlier) { calendar.startOfDay(for: $0.loggedAt!) }
         return grouped.keys.sorted(by: >).map { day in
             (day, grouped[day]!.sorted { $0.loggedAt! > $1.loggedAt! })
+        }
+    }
+
+    var timeline: TimelineFeed {
+        TimelineFeed.build(now: Date(), calendar: calendar, meals: meals, shots: timelineShots,
+            weights: timelineWeights, effects: timelineEffects, journal: timelineJournal,
+            plannedShots: timelinePlannedShots, plannedMeals: timelinePlannedMeals, markedDays: markedDays)
+    }
+
+    func glyph(for day: Date) -> TimelineGlyph {
+        switch DayCompleteness.intake(intakeEvidence[day] ?? DayIntakeEvidence()) {
+        case .complete: .complete
+        case .incomplete(.markedDidNotTrack): .markedNotTracked
+        case .incomplete(.nothingLogged): .empty
+        }
+    }
+
+    func toggleDidNotTrack(day: Date) {
+        perform {
+            guard let energyCoordinator else { return }
+            defer { reload() }
+            let now = Date()
+            _ = try energyCoordinator.advance(today: now,
+                historyFrom: calendar.date(byAdding: .day, value: -30, to: now)!)
+            if markedDays.contains(calendar.startOfDay(for: day)) {
+                try energyCoordinator.unmarkDidNotTrack(day: day)
+            } else {
+                try energyCoordinator.markDidNotTrack(day: day)
+            }
         }
     }
 
@@ -347,6 +393,19 @@ final class PhoneAppModel {
             let now = Date()
             loggedToday = try service.dayTotals(containing: now, calendar: calendar)
             target = try dailyTarget(on: now)
+            timelineShots = try store.shots()
+            timelineWeights = try store.correctedWeightView()
+            timelineEffects = try store.sideEffects()
+            timelineJournal = try store.journalEntries()
+            timelinePlannedShots = try store.plannedShots()
+            timelinePlannedMeals = try store.plannedMeals()
+            markedDays = try store.didNotTrackDays(calendar: calendar)
+            trendPoints = try EnergyBinding.trendSeries(store: store, smoothing: store.energySettings().smoothing).points
+            let profiles = try store.medicationProfiles(includingArchived: false)
+            nextDose = NextDose.status(shots: timelineShots, activeProfile: profiles.first, now: now, calendar: calendar)
+            let intake = try store.dayIntakes(through: now, calendar: calendar,
+                ownSourceBundleID: Bundle.main.bundleIdentifier ?? "com.freelunch.nutrition", markedDidNotTrack: markedDays)
+            intakeEvidence = Dictionary(uniqueKeysWithValues: intake.map { ($0.day, $0.evidence) })
         } catch {
             errorMessage = "Couldn't read the food log: \(error)"
         }
@@ -369,6 +428,22 @@ final class PhoneAppModel {
             errorMessage = "A plate can't be logged at a time that hasn't happened yet."
         } catch {
             errorMessage = "\(error)"
+        }
+    }
+
+    private func seedSyntheticTimeline() {
+        perform {
+            guard let store, let service else { return }
+            let now = Date()
+            try store.createPlannedMeal(PlannedMealData(plannedAt: calendar.date(byAdding: .day, value: 1, to: now)!, name: "Synthetic planned meal"))
+            try store.createPlannedShot(PlannedShotData(plannedAt: calendar.date(byAdding: .day, value: 2, to: now)!))
+            for offset in [1, 2, 3] {
+                let plate = try service.startDraft()
+                try service.addAdHocItem(name: "Synthetic day \(offset)", quantity: Grams(100),
+                    nutrition: NutritionValues(kcal: Kilocalories(100), protein: Grams(1), carbs: Grams(1), fat: Grams(1)), toMeal: plate.id)
+                try service.logPlate(mealID: plate.id, at: calendar.date(byAdding: .day, value: -offset, to: now)!, calendar: calendar)
+            }
+            seedSyntheticDraft()
         }
     }
 

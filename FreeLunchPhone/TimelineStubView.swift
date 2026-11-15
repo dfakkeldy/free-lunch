@@ -42,44 +42,44 @@ struct TimelineStubView: View {
         }
     }
 
-    @ViewBuilder
     private var content: some View {
-        if model.drafts.isEmpty && model.loggedTodayMeals.isEmpty && model.earlierMealDays.isEmpty {
-            EmptyTimelineView(model: model)
-        } else {
+        ScrollViewReader { proxy in
             List {
-                if !model.drafts.isEmpty {
-                    Section("Drafts") {
-                        ForEach(model.drafts) { meal in
-                            Button { model.open(meal) } label: {
-                                MealSummaryRow(model: model, meal: meal)
-                            }
-                            .foregroundStyle(.primary)
-                            .accessibilityIdentifier("timeline.draftRow")
+                if model.nextDose != nil || !model.timeline.upcoming.isEmpty {
+                    Section("Upcoming") {
+                        if let status = model.nextDose {
+                            NextDoseRow(status: status)
                         }
+                        ForEach(model.timeline.upcoming) { item in
+                            TimelineCard(model: model, item: item)
+                        }
+                    }
+                    .accessibilityIdentifier("timeline.upcoming")
+                }
+                Section {
+                    if model.timeline.today.items.isEmpty && model.meals.isEmpty {
+                        EmptyTimelineView(model: model)
+                    }
+                    ForEach(model.timeline.today.items) { item in
+                        TimelineCard(model: model, item: item)
+                    }
+                } header: {
+                    TimelineDayHeader(model: model, day: model.timeline.today.day, isToday: true)
+                        .id("timeline.today")
+                }
+                ForEach(model.timeline.past) { day in
+                    Section {
+                        ForEach(day.items) { item in
+                            TimelineCard(model: model, item: item)
+                        }
+                    } header: {
+                        TimelineDayHeader(model: model, day: day.day, isToday: false)
                     }
                 }
-                if !model.loggedTodayMeals.isEmpty {
-                    Section("Logged today") {
-                        ForEach(model.loggedTodayMeals) { meal in
-                            Button { model.open(meal) } label: {
-                                MealSummaryRow(model: model, meal: meal)
-                            }
-                            .foregroundStyle(.primary)
-                            .accessibilityIdentifier("timeline.loggedRow")
-                        }
-                    }
-                }
-                ForEach(model.earlierMealDays, id: \.day) { group in
-                    Section(model.loggedDay(for: group.day, now: Date()).name) {
-                        ForEach(group.meals) { meal in
-                            Button { model.open(meal) } label: {
-                                MealSummaryRow(model: model, meal: meal)
-                            }
-                            .foregroundStyle(.primary)
-                            .accessibilityIdentifier("timeline.loggedRow")
-                        }
-                    }
+            }
+            .onChange(of: model.flow.postLog != nil) { _, shown in
+                if shown {
+                    DispatchQueue.main.async { proxy.scrollTo("timeline.today", anchor: .top) }
                 }
             }
         }
@@ -138,7 +138,7 @@ private struct EmptyTimelineView: View {
     }
 }
 
-private struct MealSummaryRow: View {
+struct MealSummaryRow: View {
     let model: PhoneAppModel
     let meal: MealEntryData
 
