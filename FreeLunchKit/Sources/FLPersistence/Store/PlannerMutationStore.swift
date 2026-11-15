@@ -4,12 +4,28 @@ import Foundation
 
 @MainActor
 public protocol PlannerMutationStore: PlannerStore {
+    func withPlannerTransaction<T>(_ body: () throws -> T) throws -> T
     func updatePlannedShot(_ plan: PlannedShotData) throws
     func deletePlannedShot(id: UUID) throws
     func updatePlannedMeal(_ plan: PlannedMealData) throws
 }
 
 extension SwiftDataStore: PlannerMutationStore {
+    public func withPlannerTransaction<T>(_ body: () throws -> T) throws -> T {
+        if plannerTransactionActive { return try body() }
+        plannerTransactionActive = true
+        do {
+            let result = try body()
+            plannerTransactionActive = false
+            try commit()
+            return result
+        } catch {
+            plannerTransactionActive = false
+            context.rollback()
+            throw error
+        }
+    }
+
     public func updatePlannedShot(_ plan: PlannedShotData) throws {
         guard let stored = try model(PlannedShot.self, id: plan.id) else { throw FreeLunchStoreError.notFound(plan.id) }
         stored.plannedAt = plan.plannedAt

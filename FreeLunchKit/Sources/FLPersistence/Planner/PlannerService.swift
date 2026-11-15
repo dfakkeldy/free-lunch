@@ -34,6 +34,7 @@ public final class PlannerService {
     /// Reconciliation preserves an explicitly moved reminder. A skipped dose
     /// replacement remains at its projected time until a shot event.
     public func reconcile(activeProfile: MedicationProfileData?) throws -> [PlannerReminderChange] {
+        try store.withPlannerTransaction {
         let pending = try store.plannedShots().filter { $0.status == .pending }
         let projection = NextDose.nextDoseAt(shots: try store.shots(), activeProfile: activeProfile, calendar: calendar)
         guard let projection else {
@@ -45,30 +46,40 @@ public final class PlannerService {
             changes.append(try create(at: projection))
         }
         return changes
+    
+        }
     }
 
     public func moveShot(id: UUID, to date: Date) throws -> PlannerReminderChange {
+        try store.withPlannerTransaction {
         var plan = try pendingShot(id)
         let old = plan.plannedAt
         plan.plannedAt = date
         try store.updatePlannedShot(plan)
         return change(plan, old: old, new: date)
+    
+        }
     }
 
     public func skipShot(id: UUID, activeProfile: MedicationProfileData?) throws -> [PlannerReminderChange] {
+        try store.withPlannerTransaction {
         var plan = try pendingShot(id)
         let projection = NextDose.nextDoseAt(shots: try store.shots(), activeProfile: activeProfile, calendar: calendar)
         plan.status = .skipped
         try store.updatePlannedShot(plan)
         var changes = [change(plan, old: plan.plannedAt, new: nil)]
         if let projection, let profile = activeProfile,
-           let next = calendar.date(byAdding: .day, value: profile.intervalDays, to: projection) {
+           let next = calendar.date(byAdding: .day, value: profile.intervalDays, to: max(projection, plan.plannedAt)) {
             changes.append(try create(at: next))
         }
         return changes
+    
+        }
     }
 
     public func logShot(_ shot: ShotEventData, activeProfile: MedicationProfileData?) throws -> [PlannerReminderChange] {
+        try store.withPlannerTransaction {
+        let before = try projection(activeProfile)
         try store.createShot(shot)
         var changes: [PlannerReminderChange] = []
         if activeProfile?.id == shot.medicationID, activeProfile?.archivedAt == nil,
@@ -78,61 +89,102 @@ public final class PlannerService {
             try store.updatePlannedShot(plan)
             changes.append(change(plan, old: plan.plannedAt, new: nil))
         }
-        return try changes + reproject(activeProfile: activeProfile)
+        if !changes.isEmpty || before != (try projection(activeProfile)) {
+            changes += try reproject(activeProfile: activeProfile)
+        }
+        return changes
+    
+        }
     }
 
     public func editShot(_ shot: ShotEventData, activeProfile: MedicationProfileData?) throws -> [PlannerReminderChange] {
+        try store.withPlannerTransaction {
+        let before = try projection(activeProfile)
         try store.updateShot(shot)
-        return try reproject(activeProfile: activeProfile)
+        return try before == projection(activeProfile) ? [] : reproject(activeProfile: activeProfile)
+    
+        }
     }
 
     public func deleteShot(id: UUID, activeProfile: MedicationProfileData?) throws -> [PlannerReminderChange] {
+        try store.withPlannerTransaction {
+        let before = try projection(activeProfile)
         try store.deleteShot(id: id)
-        return try reproject(activeProfile: activeProfile)
+        return try before == projection(activeProfile) ? [] : reproject(activeProfile: activeProfile)
+    
+        }
     }
 
     public func startPlannedMeal(id: UUID) throws -> MealEntryData {
+        try store.withPlannerTransaction {
         var plan = try pendingMeal(id)
-        guard plan.fulfilledBy == nil else { throw PlannerError.draftAlreadyLinked(id) }
+        if let linked = plan.fulfilledBy {
+            if let existing = try store.meal(id: linked) {
+                if existing.state == .draft { return existing }
+                throw PlannerError.draftAlreadyLinked(id)
+            }
+            plan.fulfilledBy = nil
+        }
         let draft = try plate.startDraft()
         let note = [plan.name, plan.note].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "\n")
         try store.setNote(note.isEmpty ? nil : note, mealID: draft.id)
         plan.fulfilledBy = draft.id
         try store.updatePlannedMeal(plan)
-        return try store.meal(id: draft.id)!
+        guard let result = try store.meal(id: draft.id) else { throw FreeLunchStoreError.notFound(draft.id) }
+        return result
+    
+        }
     }
 
     @discardableResult
     public func logMeal(id: UUID, at date: Date? = nil) throws -> MealEntryData {
+        try store.withPlannerTransaction {
         let meal = try plate.log(mealID: id, at: date)
         for var plan in try store.plannedMeals() where plan.status == .pending && plan.fulfilledBy == id {
             plan.status = .done
             try store.updatePlannedMeal(plan)
         }
         return meal
+    
+        }
     }
 
     public func discardDraft(id: UUID) throws {
+        try store.withPlannerTransaction {
         _ = try plate.resumeDraft(id: id)
         try store.deleteMeal(id: id)
         for var plan in try store.plannedMeals() where plan.status == .pending && plan.fulfilledBy == id {
             plan.fulfilledBy = nil
             try store.updatePlannedMeal(plan)
         }
+    
+        }
     }
 
     public func lapseOverdueMeals(now date: Date? = nil) throws -> [PlannerReminderChange] {
+        try store.withPlannerTransaction {
         let today = calendar.startOfDay(for: date ?? now())
         var changes: [PlannerReminderChange] = []
-        for var plan in try store.plannedMeals() where plan.status == .pending && plan.plannedAt < today {
-            // A draft is not a logged meal; it may still be completed later,
-            // but the expired plan no longer claims it.
-            plan.status = .skipped
-            plan.fulfilledBy = nil
+        for var plan in try store.plannedMeals() where plan.status == .pending {
+            let linkedMeal = try plan.fulfilledBy.flatMap { try store.meal(id: $0) }
+            if linkedMeal?.state == .logged {
+                plan.status = .done
+            } else if plan.plannedAt < today {
+                plan.status = .skipped
+                plan.fulfilledBy = nil
+            } else {
+                continue
+            }
             try store.updatePlannedMeal(plan)
             changes.append(PlannerReminderChange(planID: plan.id, oldTime: plan.plannedAt, newTime: nil, notificationID: plan.notificationID))
         }
         return changes
+    
+        }
+    }
+
+    private func projection(_ profile: MedicationProfileData?) throws -> Date? {
+        NextDose.nextDoseAt(shots: try store.shots(), activeProfile: profile, calendar: calendar)
     }
 
     private func reproject(activeProfile: MedicationProfileData?) throws -> [PlannerReminderChange] {

@@ -78,4 +78,51 @@ import Testing
         #expect(try service.lapseOverdueMeals(now: midnight).count == 1)
         #expect(try store.plannedMeals()[0].status == .skipped)
     }
+    @Test func unrelatedEditsAndRepeatedSkipsPreserveIntent() throws {
+        let store = try SwiftDataStore.phone(at: .inMemory)
+        let profile = MedicationProfileData(known: .semaglutide)
+        try store.createMedicationProfile(profile)
+        let date = Date(timeIntervalSince1970: 1_700_000_000)
+        var shot = ShotEventData(takenAt: date, dose: Milligrams(1), medicationID: profile.id)
+        try store.createShot(shot)
+        let service = PlannerService(store: store, calendar: calendar)
+        _ = try service.reconcile(activeProfile: profile)
+        let original = try #require(store.plannedShots().first)
+        _ = try service.skipShot(id: original.id, activeProfile: profile)
+        let first = try #require(store.plannedShots().first { $0.status == .pending })
+        shot.note = "Updated"
+        #expect(try service.editShot(shot, activeProfile: profile).isEmpty)
+        #expect(try store.plannedShots().first { $0.id == first.id }?.plannedAt == first.plannedAt)
+        _ = try service.skipShot(id: first.id, activeProfile: profile)
+        let second = try #require(store.plannedShots().first { $0.status == .pending })
+        #expect(second.plannedAt == calendar.date(byAdding: .day, value: profile.intervalDays, to: first.plannedAt))
+        let removed = try service.deleteShot(id: shot.id, activeProfile: profile)
+        #expect(removed.count == 1)
+        #expect(try store.plannedShots().allSatisfy { $0.status != .pending })
+    }
+
+    @Test func transactionRollsBackAndLapseRecognizesLoggedDraft() throws {
+        enum Failure: Error { case injected }
+        let store = try SwiftDataStore.phone(at: .inMemory)
+        let date = Date(timeIntervalSince1970: 1_700_000_000)
+        let plan = PlannedMealData(plannedAt: date, name: "Meal")
+        #expect(throws: Failure.self) {
+            try store.withPlannerTransaction {
+                try store.createPlannedMeal(plan)
+                throw Failure.injected
+            }
+        }
+        #expect(try store.plannedMeals().isEmpty)
+        try store.createPlannedMeal(plan)
+        let service = PlannerService(store: store, calendar: calendar, now: { date })
+        let draft = try service.startPlannedMeal(id: plan.id)
+        #expect(try service.startPlannedMeal(id: plan.id).id == draft.id)
+        try store.deleteMeal(id: draft.id)
+        let replacement = try service.startPlannedMeal(id: plan.id)
+        _ = try PlateLifecycleService(store: store).log(mealID: replacement.id, at: date)
+        _ = try service.lapseOverdueMeals(now: date.addingTimeInterval(172_800))
+        #expect(try store.plannedMeals()[0].status == .done)
+        #expect(try store.plannedMeals()[0].fulfilledBy == replacement.id)
+    }
+
 }

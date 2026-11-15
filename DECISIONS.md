@@ -5,9 +5,9 @@ records the code-level choices made here.
 
 ## 2026-11-15 — Planner service choices
 
-- Skipping a shot creates one replacement one calendar interval after the current projection. Reconciliation preserves it until a shot event changes the projection.
+- Skipping a shot creates one replacement one calendar interval after the later of the current projection and the skipped reminder. Reconciliation preserves it until a shot event changes the projection.
 - A planned meal's name and optional note prefill the draft's note, on separate lines. Its pending link identifies that draft; only logging the linked draft completes the plan. Discarding clears the link, and an unlogged draft does not prevent end-of-day lapse.
-- Planner operations return reminder changes for a notification integration to apply. Callers route shot and linked-draft lifecycle events through the service.
+- Planner operations return reminder changes for a notification integration to apply. Callers route shot and linked-draft lifecycle events through the service. Multi-record changes commit together; lapse also recognizes an already-logged linked draft.
 
 ## 2026-11-15 — Weight lane series
 
