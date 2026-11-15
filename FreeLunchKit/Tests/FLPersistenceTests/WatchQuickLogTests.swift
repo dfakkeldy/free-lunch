@@ -71,7 +71,7 @@ import Testing
     @Test func boundaryMarkerAndHunger() throws {
         #expect(WatchQuickLogRules.coalesces(lastTapAt: at(), tapAt: at().addingTimeInterval(600)))
         #expect(!WatchQuickLogRules.coalesces(lastTapAt: at(), tapAt: at().addingTimeInterval(601)))
-        #expect(WatchQuickLogRules.portion(lastPortionGrams: 100, steps: 1) == 110)
+        #expect(abs((WatchQuickLogRules.portion(lastPortionGrams: 100, steps: 1) ?? 0) - 110) < 0.000001)
         #expect(WatchQuickLogRules.portion(lastPortionGrams: 100, steps: -10) == nil)
         let store = try SwiftDataStore.watch(at: .inMemory), link = InMemoryWatchSyncLink()
         let sync = WatchSyncCoordinator(store: store, transport: link.watch), state = QuickState()
