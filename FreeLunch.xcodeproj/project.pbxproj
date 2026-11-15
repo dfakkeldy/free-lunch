@@ -637,6 +637,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = FreeLunchWatchComplication/FreeLunchWatchComplication.entitlements;
+				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = FreeLunchWatchComplication/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -674,6 +675,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = FreeLunchWatchComplication/FreeLunchWatchComplication.entitlements;
+				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = FreeLunchWatchComplication/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
