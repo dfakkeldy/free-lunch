@@ -281,6 +281,25 @@ struct WatchSyncSpineTests {
         #expect(try store.recentFoods() == (1...5).map(food))
     }
 
+    @Test("digest hook fires only when a digest is applied, including after relaunch")
+    func digestAppliedHook() throws {
+        let link = InMemoryWatchSyncLink()
+        let store = try SwiftDataStore.watch(at: .inMemory)
+        let watch = WatchSyncCoordinator(store: store, transport: link.watch)
+        var received: [WatchDigestData] = []
+        watch.digestApplied = { received.append($0) }
+        let digest = WatchDigestData(generatedAt: at(hour: 2), recentFoods: [])
+        try link.phone.publishDigest(digest)
+        link.deliverDigest(to: .watch)
+        try watch.receive(digest: digest)
+        try watch.receive(digest: .init(generatedAt: at(hour: 1), recentFoods: []))
+        #expect(received == [digest])
+        let relaunched = WatchSyncCoordinator(store: store, transport: link.watch)
+        relaunched.digestApplied = { received.append($0) }
+        try relaunched.activate()
+        #expect(received == [digest, digest])
+    }
+
     // MARK: Convergence
 
     @Test("dropped outbox transfers are resent on the next activation")

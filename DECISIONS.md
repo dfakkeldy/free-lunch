@@ -1,5 +1,8 @@
 # Decisions
 
+Newest first. Product decisions live in the private planning repo; this log
+records the code-level choices made here.
+
 ## 2026-11-15 — Watch next-dose complication
 
 The complication stores its projection and pending local-shot timestamp in the
@@ -12,8 +15,9 @@ will connect the bridge when their sync and shot-logging entry points exist.
 The App Group must be registered for both Watch bundle identifiers for signed
 releases.
 
-Newest first. Product decisions live in the private planning repo; this log
-records the code-level choices made here.
+WidgetKit keeps the static complication in its gallery when the lane is off;
+the complication renders empty until a projection is available. The phone
+publisher must supply the interval for immediate local projection.
 
 ## 2026-11-15 — Weight lane series
 

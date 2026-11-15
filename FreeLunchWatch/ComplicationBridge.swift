@@ -5,8 +5,8 @@ import WidgetKit
 
 @MainActor
 final class ComplicationBridge {
-    private let defaults = UserDefaults(suiteName: "group.com.freelunch.nutrition")!
-    private let key = "nextDoseComplicationState"
+    private let defaults = UserDefaults(suiteName: NextDoseComplicationConfiguration.appGroup)!
+    private let key = NextDoseComplicationConfiguration.stateKey
     private var state: NextDoseComplicationState
 
     init() {
@@ -33,6 +33,6 @@ final class ComplicationBridge {
     }
 
     private func reload() {
-        WidgetCenter.shared.reloadTimelines(ofKind: "NextDose")
+        WidgetCenter.shared.reloadTimelines(ofKind: NextDoseComplicationConfiguration.kind)
     }
 }

@@ -3,8 +3,8 @@ import FLCore
 import SwiftUI
 import WidgetKit
 
-private let group = "group.com.freelunch.nutrition"
-private let stateKey = "nextDoseComplicationState"
+private let group = NextDoseComplicationConfiguration.appGroup
+private let stateKey = NextDoseComplicationConfiguration.stateKey
 
 struct DoseEntry: TimelineEntry {
     let date: Date
@@ -41,11 +41,9 @@ struct DoseView: View {
                     VStack { Text("Next dose"); Text(due, style: .relative) }
                 }
             case .overdue(_, let days):
-                if days == 0 { Text("Due today") }
-                else if days == 1 { Text("Due 1 day ago") }
-                else { Text("Due \(days) days ago") }
+                Text(NextDoseComplicationLabel.overdue(days: days))
             case nil:
-                Text("No next dose")
+                EmptyView()
             }
         }
         .containerBackground(for: .widget) { Color.clear }
@@ -55,7 +53,7 @@ struct DoseView: View {
 @main
 struct NextDoseWidget: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "NextDose", provider: DoseProvider()) { DoseView(entry: $0) }
+        StaticConfiguration(kind: NextDoseComplicationConfiguration.kind, provider: DoseProvider()) { DoseView(entry: $0) }
             .configurationDisplayName("Next dose")
             .description("Shows when the next dose is due.")
             .supportedFamilies([.accessoryCorner, .accessoryInline, .accessoryCircular])

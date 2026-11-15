@@ -1,6 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import Foundation
 
+public enum NextDoseComplicationConfiguration {
+    public static let appGroup = "group.com.freelunch.nutrition"
+    public static let stateKey = "nextDoseComplicationState"
+    public static let kind = "NextDose"
+}
+
+public enum NextDoseComplicationLabel {
+    public static func overdue(days: Int) -> String {
+        if days == 0 { return "Due today" }
+        if days == 1 { return "Due 1 day ago" }
+        return "Due \(days) days ago"
+    }
+}
+
 public struct NextDoseTimelineEntry: Sendable, Hashable {
     public let date: Date
     public let status: NextDoseStatus?
@@ -27,26 +41,36 @@ public enum NextDoseTimeline {
 public struct NextDoseComplicationState: Codable, Sendable {
     public private(set) var nextDose: WatchNextDoseData?
     public private(set) var localShotAt: Date?
+    public private(set) var previousDueAt: Date?
 
     public init(nextDose: WatchNextDoseData? = nil, localShotAt: Date? = nil) {
         self.nextDose = nextDose
         self.localShotAt = localShotAt
+        self.previousDueAt = nil
     }
 
     public mutating func shotLogged(at: Date, calendar: Calendar, reload: () -> Void) {
-        guard var dose = nextDose, let interval = dose.intervalDays,
-              let projected = NextDose.projectedDate(takenAt: at, intervalDays: interval, calendar: calendar) else { return }
-        dose.nextDoseAt = projected
-        nextDose = dose
+        previousDueAt = nextDose?.nextDoseAt
+        if var dose = nextDose, let interval = dose.intervalDays,
+           let projected = NextDose.projectedDate(takenAt: at, intervalDays: interval, calendar: calendar) {
+            dose.nextDoseAt = projected
+            nextDose = dose
+        } else {
+            nextDose = nil
+        }
         localShotAt = at
         reload()
     }
 
     public mutating func digestApplied(_ digest: WatchDigestData, reload: () -> Void) {
-        if let localShotAt, digest.generatedAt < localShotAt { return }
+        if let localShotAt {
+            guard digest.generatedAt >= localShotAt, let incoming = digest.nextDose?.nextDoseAt else { return }
+            if incoming != nextDose?.nextDoseAt, let previousDueAt, incoming <= previousDueAt { return }
+        }
         let oldDate = nextDose?.nextDoseAt
         nextDose = digest.nextDose
         localShotAt = nil
+        previousDueAt = nil
         if oldDate != nextDose?.nextDoseAt { reload() }
     }
 }

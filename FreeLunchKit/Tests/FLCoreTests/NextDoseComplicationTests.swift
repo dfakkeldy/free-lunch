@@ -33,6 +33,8 @@ struct NextDoseComplicationTests {
         #expect(projection.nextDoseAt == date(15, 9))
         state.digestApplied(.init(generatedAt: date(8), recentFoods: [], nextDose: dose(date(9)))) { reloads += 1 }
         #expect(state.nextDose == projection)
+        state.digestApplied(.init(generatedAt: date(8, 10), recentFoods: [], nextDose: dose(date(9)))) { reloads += 1 }
+        #expect(state.nextDose == projection)
         state.digestApplied(.init(generatedAt: date(8, 10), recentFoods: [], nextDose: projection)) { reloads += 1 }
         #expect(reloads == 1)
         let restored = try JSONDecoder().decode(NextDoseComplicationState.self, from: JSONEncoder().encode(state))
@@ -46,4 +48,25 @@ struct NextDoseComplicationTests {
         let decoded = try JSONDecoder().decode(WatchNextDoseData.self, from: JSONSerialization.data(withJSONObject: object))
         #expect(decoded.intervalDays == nil)
     }
+    @Test func missingIntervalClearsOverdueAndWaitsForPhone() {
+        var old = dose(date(7))
+        old.intervalDays = nil
+        var state = NextDoseComplicationState(nextDose: old)
+        var reloads = 0
+        state.shotLogged(at: date(8), calendar: calendar) { reloads += 1 }
+        #expect(state.nextDose == nil)
+        state.digestApplied(.init(generatedAt: date(8, 1), recentFoods: [], nextDose: old)) { reloads += 1 }
+        #expect(state.nextDose == nil)
+        #expect(reloads == 1)
+    }
+
+    @Test func overdueLabelsAndMidnights() {
+        #expect(NextDoseComplicationLabel.overdue(days: 0) == "Due today")
+        #expect(NextDoseComplicationLabel.overdue(days: 1) == "Due 1 day ago")
+        #expect(NextDoseComplicationLabel.overdue(days: 2) == "Due 2 days ago")
+        let entries = NextDoseTimeline.entries(dueAt: date(7, 9), now: date(7, 10), calendar: calendar, overdueDays: 3)
+        #expect(entries.map(\.date) == [date(7, 10), date(8), date(9), date(10)])
+        #expect(entries.last?.status == .overdue(dueAt: date(7, 9), daysLate: 3))
+    }
+
 }
