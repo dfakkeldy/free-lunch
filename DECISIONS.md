@@ -50,6 +50,32 @@ records the code-level choices made here.
   spacing or redundant parentheses are equal. `call` keeps its arguments as
   an array; the parser guarantees the count matches the function's arity.
 
+## 2026-11-15 — Dietary mirror and native intake boundary
+
+- Dietary energy samples anchor the nutrition mirror. Every source is cached;
+  reconstruction drops deleted rows and this app's source before grouping by
+  calendar day. Macros remain unknown when energy samples carry none.
+- A logged native meal selects native intake for its whole day. With no native
+  meal, corrected mirror totals supply reconstruction. The frozen
+  `healthKitImport` meal source is legacy provenance only, excluded from energy
+  inputs; new nutrition imports never create meals.
+- Nutrition corrections name a Gregorian `yyyy-MM-dd` civil day in the reader's
+  time zone. Replacement payloads contain kcal and optional gram totals; the
+  latest valid correction wins by creation date, then UUID. Deleted mirror
+  rows cannot be restored by a correction.
+- The phone dietary service persists meals first and exports energy best effort.
+  External UUID metadata links writes to meal IDs without a schema field.
+  Replacement writes save before deleting older linked samples; export failure
+  preserves local logging. Callers use `writeMeal` after persisting edits or
+  watch delivery. These are package APIs; the current plate lifecycle does not
+  call them. App-level log/edit/delete wiring belongs to the phone integration
+  work, including watch delivery. No HealthKit type enters the energy engine.
+- Source identity is mandatory at reconstruction and recompute call sites and
+  comes from the writing adapter in production. There is no bundle-ID fallback.
+- Reconstruction sums all outside sources, as the current boundary specifies.
+  It cannot identify duplicate food across outside apps. Source selection or
+  priority is a separate product decision; no heuristic deduplication is applied.
+
 ## 2026-11-03 — Exposure curve math
 
 - `ExposureCurve` (FLCore) sums one Bateman curve per logged shot, scaled

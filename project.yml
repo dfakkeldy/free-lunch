@@ -37,8 +37,8 @@ targets:
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
-        INFOPLIST_KEY_NSHealthShareUsageDescription: "Free Lunch reads body weight and energy burned to compute energy balance."
-        INFOPLIST_KEY_NSHealthUpdateUsageDescription: "Free Lunch saves logged food energy and nutrients to Health."
+        INFOPLIST_KEY_NSHealthShareUsageDescription: "Free Lunch reads body weight and dietary energy to show weight trends and reconstruct food intake."
+        INFOPLIST_KEY_NSHealthUpdateUsageDescription: "Free Lunch saves logged food energy to Health."
         CODE_SIGN_ENTITLEMENTS: FreeLunchPhone/FreeLunchPhone.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     dependencies:
@@ -67,8 +67,8 @@ targets:
         INFOPLIST_KEY_WKCompanionAppBundleIdentifier: com.freelunch.nutrition
         INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp: NO
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
-        INFOPLIST_KEY_NSHealthShareUsageDescription: "Free Lunch reads body weight and energy burned to compute energy balance."
-        INFOPLIST_KEY_NSHealthUpdateUsageDescription: "Free Lunch saves logged food energy and nutrients to Health."
+        INFOPLIST_KEY_NSHealthShareUsageDescription: "Free Lunch reads body weight and dietary energy to show weight trends and reconstruct food intake."
+        INFOPLIST_KEY_NSHealthUpdateUsageDescription: "Free Lunch saves logged food energy to Health."
         CODE_SIGN_ENTITLEMENTS: FreeLunchWatch/FreeLunchWatch.entitlements
         TARGETED_DEVICE_FAMILY: "4"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

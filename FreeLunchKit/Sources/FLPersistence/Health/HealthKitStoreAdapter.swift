@@ -111,6 +111,41 @@ public final class HealthKitStoreAdapter: HealthStoreAdapter {
         try await mapped(.bodyMass) { try await store.delete(sample) }
     }
 
+    private static let dietaryEnergy = HKQuantityType(.dietaryEnergyConsumed)
+
+    public func dietaryChanges(after anchor: HealthQueryAnchor?, limit: Int) async throws -> HealthDietaryChanges {
+        let descriptor = HKAnchoredObjectQueryDescriptor(
+            predicates: [.quantitySample(type: Self.dietaryEnergy)],
+            anchor: anchor.flatMap(Self.unarchive), limit: limit
+        )
+        let result = try await mapped(.dietaryEnergyConsumed) { try await descriptor.result(for: store) }
+        let added = result.addedSamples.compactMap { sample -> DietarySampleData? in
+            guard let energy = try? Kilocalories(validating: sample.quantity.doubleValue(for: .kilocalorie())) else { return nil }
+            return DietarySampleData(hkUUID: sample.uuid, date: sample.startDate, energy: energy,
+                                     sourceBundleID: sample.sourceRevision.source.bundleIdentifier)
+        }
+        return HealthDietaryChanges(added: added, deleted: result.deletedObjects.map(\.uuid),
+                                    unreadable: result.addedSamples.count - added.count,
+                                    anchor: try Self.archive(result.newAnchor))
+    }
+
+    public func saveDietaryEnergy(_ energy: Kilocalories, at date: Date, mealID: UUID) async throws -> DietarySampleData {
+        let sample = HKQuantitySample(type: Self.dietaryEnergy,
+            quantity: HKQuantity(unit: .kilocalorie(), doubleValue: energy.value), start: date, end: date,
+            metadata: [HKMetadataKeyExternalUUID: mealID.uuidString, HKMetadataKeyWasUserEntered: true])
+        try await mapped(.dietaryEnergyConsumed) { try await store.save(sample) }
+        return DietarySampleData(hkUUID: sample.uuid, date: date, energy: energy, sourceBundleID: ownSourceBundleID)
+    }
+
+    public func deleteDietaryEnergy(mealID: UUID, except hkUUID: UUID?) async throws {
+        let predicate = HKQuery.predicateForObjects(withMetadataKey: HKMetadataKeyExternalUUID, allowedValues: [mealID.uuidString])
+        let descriptor = HKSampleQueryDescriptor(
+            predicates: [.quantitySample(type: Self.dietaryEnergy, predicate: predicate)], sortDescriptors: [])
+        let samples = try await mapped(.dietaryEnergyConsumed) { try await descriptor.result(for: store) }
+        let owned = samples.filter { $0.uuid != hkUUID && $0.sourceRevision.source.bundleIdentifier == ownSourceBundleID }
+        if !owned.isEmpty { try await mapped(.dietaryEnergyConsumed) { try await store.delete(owned) } }
+    }
+
     // MARK: Mapping
 
     private static let bodyMass = HKQuantityType(.bodyMass)
@@ -119,6 +154,7 @@ public final class HealthKitStoreAdapter: HealthStoreAdapter {
     private static func sampleType(_ type: HealthDataType) -> HKSampleType {
         switch type {
         case .bodyMass: bodyMass
+        case .dietaryEnergyConsumed: dietaryEnergy
         }
     }
 

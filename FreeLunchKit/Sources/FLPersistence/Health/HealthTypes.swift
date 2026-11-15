@@ -16,6 +16,7 @@ import Foundation
 public enum HealthDataType: String, CaseIterable, Sendable, Hashable {
     /// Body weight. Read for the mirror; written by manual weigh-ins.
     case bodyMass
+    case dietaryEnergyConsumed
 }
 
 /// Whether Free Lunch may write a type, as HealthKit reports it.
@@ -119,3 +120,28 @@ public enum HealthSyncResult: Equatable, Sendable {
     /// carries on from there.
     case degraded(HealthAccessError)
 }
+
+public struct HealthDietaryChanges: Sendable, Hashable {
+    /// Samples added since the anchor, as HealthKit stores them.
+    public let added: [DietarySampleData]
+    /// HealthKit UUIDs of samples deleted since the anchor.
+    public let deleted: [UUID]
+    /// Added samples the adapter couldn't express as a dietary energy (a value no
+    /// `Kilocalories` holds). They are left out of `added` but still count
+    /// toward the page, so a page of only these doesn't end the pass.
+    public let unreadable: Int
+    /// The position after this page; pass it to the next query.
+    public let anchor: HealthQueryAnchor
+
+    public init(added: [DietarySampleData], deleted: [UUID], unreadable: Int = 0, anchor: HealthQueryAnchor) {
+        precondition(unreadable >= 0, "unreadable must not be negative")
+        self.added = added
+        self.deleted = deleted
+        self.unreadable = unreadable
+        self.anchor = anchor
+    }
+
+    /// True for the page after the last change: the pass is done.
+    public var isEmpty: Bool { added.isEmpty && deleted.isEmpty && unreadable == 0 }
+}
+

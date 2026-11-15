@@ -126,6 +126,17 @@ extension SwiftDataStore: WeightStore {
     }
 
     private func validate(_ correction: CorrectionData) throws {
+        if correction.targetKind == .hkNutritionDay {
+            guard CorrectedNutritionView.isValidDayKey(correction.targetID) else {
+                throw WeightStoreError.invalidCorrection(correction.id)
+            }
+            if correction.action == .replace {
+                guard let data = correction.replacement,
+                      let totals = try? NutritionDayReplacement.decode(data), totals.isValid else {
+                    throw WeightStoreError.invalidCorrection(correction.id)
+                }
+            }
+        }
         switch correction.action {
         case .exclude:
             guard correction.replacement == nil else {

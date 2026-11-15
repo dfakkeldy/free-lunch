@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // FLEnergyCore bound to the store: the engine's inputs read from stored
-// meals, the live series and calculated target recomputed from them, and
+// meals and the corrected dietary mirror, the live series and calculated target recomputed from them, and
 // the triggers that say when to recompute (spec §3).
 //
 // Everything here is derived and recomputable, never canonical (spec §3
 // "Recompute"). Nothing in this file writes to the store: a recomputation
-// reads meals and the target ledger and returns values, so a backfill edit
+// reads meals, the dietary mirror, corrections and the target ledger and returns values, so a backfill edit
 // moves expenditure and the calculated target and cannot reach an adopted
 // TargetPeriod (spec §3 acceptance #4).
 //
@@ -19,15 +19,15 @@ import FLCore
 import FLEnergyCore
 import Foundation
 
-extension MealStore {
+extension MealStore where Self: DietaryStore & WeightStore {
     /// The engine's intake for each calendar day from `first` through `last`
     /// (inclusive) that has a logged meal or a "didn't track" mark, oldest
     /// first (spec §3 "Day completeness").
     ///
     /// A day's kcal is the sum of its logged meals' item snapshots, by the
     /// calendar day of `loggedAt`. Native meals count as logged MealEntries;
-    /// HealthKit-imported meals are the reconstructed dietary-energy days of
-    /// spec §10. Drafts never count.
+    /// Legacy HealthKit-imported meals are ignored. Reconstructed days come
+    /// from the dietary mirror. Drafts never count.
     ///
     /// Double-count boundary (spec §10): a day with at least one native
     /// logged meal uses native intake only and its imported kcal are
@@ -37,6 +37,7 @@ extension MealStore {
         from first: Date,
         through last: Date,
         calendar: Calendar,
+        ownSourceBundleID: String,
         markedDidNotTrack: Set<Date> = []
     ) throws -> [DayIntake] {
         let start = calendar.startOfDay(for: first)
@@ -46,7 +47,7 @@ extension MealStore {
         else { return [] }
         let end = calendar.startOfDay(for: endRaw)
         return try dayIntakes(
-            in: DateInterval(start: start, end: end), calendar: calendar, markedDidNotTrack: markedDidNotTrack
+            in: DateInterval(start: start, end: end), calendar: calendar, ownSourceBundleID: ownSourceBundleID, markedDidNotTrack: markedDidNotTrack
         )
     }
 
@@ -57,13 +58,14 @@ extension MealStore {
     public func dayIntakes(
         through last: Date,
         calendar: Calendar,
+        ownSourceBundleID: String,
         markedDidNotTrack: Set<Date> = []
     ) throws -> [DayIntake] {
         let lastDay = calendar.startOfDay(for: last)
         guard let endRaw = calendar.date(byAdding: .day, value: 1, to: lastDay) else { return [] }
         let end = calendar.startOfDay(for: endRaw)
         return try dayIntakes(
-            in: DateInterval(start: .distantPast, end: end), calendar: calendar, markedDidNotTrack: markedDidNotTrack
+            in: DateInterval(start: .distantPast, end: end), calendar: calendar, ownSourceBundleID: ownSourceBundleID, markedDidNotTrack: markedDidNotTrack
         )
     }
 
@@ -72,6 +74,7 @@ extension MealStore {
     private func dayIntakes(
         in interval: DateInterval,
         calendar: Calendar,
+        ownSourceBundleID: String,
         markedDidNotTrack: Set<Date>
     ) throws -> [DayIntake] {
         let start = interval.start
@@ -82,14 +85,16 @@ extension MealStore {
             let key = calendar.startOfDay(for: loggedAt)
             var day = days[key] ?? IntakeDayTally()
             let kcal = meal.items.reduce(0) { $0 + $1.nutrition.kcal }
-            if meal.source == .healthKitImport {
-                day.importedKcal += kcal
-                day.hasImport = true
-            } else {
-                day.nativeKcal += kcal
-                day.nativeMeals += 1
-            }
+            guard meal.source != .healthKitImport else { continue }
+            day.nativeKcal += kcal
+            day.nativeMeals += 1
             days[key] = day
+        }
+        let last = calendar.date(byAdding: .day, value: -1, to: end)!
+        for reconstructed in try reconstructedNutritionDays(from: start, through: last,
+                calendar: calendar, ownSourceBundleID: ownSourceBundleID) {
+            days[reconstructed.day, default: IntakeDayTally()].importedKcal = reconstructed.totals.kcal
+            days[reconstructed.day, default: IntakeDayTally()].hasImport = true
         }
         for mark in markedDidNotTrack {
             let key = calendar.startOfDay(for: mark)
@@ -203,18 +208,19 @@ public struct LiveEnergy: Sendable, Hashable {
 public enum EnergyBinding {
     /// The recompute key for `today`, reading intake from the store.
     public static func key(
-        store: some MealStore,
+        store: some MealStore & DietaryStore & WeightStore,
         today: Date,
         historyFrom: Date,
         weights: TrendSeries,
         schedule: FormulaActivationSchedule,
         rateGoal: RateGoal,
         calendar: Calendar,
+        ownSourceBundleID: String,
         markedDidNotTrack: Set<Date> = []
     ) throws -> EnergyRecomputeKey {
         let day = calendar.startOfDay(for: today)
         let from = calendar.startOfDay(for: historyFrom)
-        let intake = try store.dayIntakes(through: day, calendar: calendar, markedDidNotTrack: markedDidNotTrack)
+        let intake = try store.dayIntakes(through: day, calendar: calendar, ownSourceBundleID: ownSourceBundleID, markedDidNotTrack: markedDidNotTrack)
         return EnergyRecomputeKey(
             day: day, historyFrom: from, intake: intake, weights: weights, schedule: schedule, rateGoal: rateGoal
         )
@@ -248,18 +254,19 @@ public enum EnergyBinding {
     /// ``key(store:today:historyFrom:weights:schedule:rateGoal:calendar:markedDidNotTrack:)``
     /// then ``recompute(store:key:calendar:)``.
     public static func recompute(
-        store: some MealStore & TargetStore,
+        store: some MealStore & TargetStore & DietaryStore & WeightStore,
         today: Date,
         historyFrom: Date,
         weights: TrendSeries,
         schedule: FormulaActivationSchedule,
         rateGoal: RateGoal,
         calendar: Calendar,
+        ownSourceBundleID: String,
         markedDidNotTrack: Set<Date> = []
     ) throws -> LiveEnergy {
         let key = try key(
             store: store, today: today, historyFrom: historyFrom, weights: weights,
-            schedule: schedule, rateGoal: rateGoal, calendar: calendar, markedDidNotTrack: markedDidNotTrack
+            schedule: schedule, rateGoal: rateGoal, calendar: calendar, ownSourceBundleID: ownSourceBundleID, markedDidNotTrack: markedDidNotTrack
         )
         return try recompute(store: store, key: key, calendar: calendar)
     }

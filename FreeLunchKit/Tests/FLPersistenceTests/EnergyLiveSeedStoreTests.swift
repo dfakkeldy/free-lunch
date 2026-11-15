@@ -27,7 +27,7 @@ private func key(
 ) throws -> EnergyRecomputeKey {
     try EnergyBinding.key(
         store: store, today: E.noon(today), historyFrom: E.day(historyFrom), weights: E.weights,
-        schedule: schedule, rateGoal: E.rate(-0.5), calendar: E.calendar, markedDidNotTrack: marks
+        schedule: schedule, rateGoal: E.rate(-0.5), calendar: E.calendar, ownSourceBundleID: "com.freelunch.nutrition", markedDidNotTrack: marks
     )
 }
 
@@ -130,7 +130,7 @@ struct EnergyLiveSeedStoreTests {
         let store = try makeInMemoryStore()
         try E.logMeals(store, days: 0...5)
         let intake = try store.dayIntakes(
-            through: E.noon(3), calendar: E.calendar,
+            through: E.noon(3), calendar: E.calendar, ownSourceBundleID: "com.freelunch.nutrition",
             markedDidNotTrack: [E.noon(-400), E.noon(2), E.noon(4)]
         )
         #expect(intake.map(\.day) == [E.day(-400), E.day(0), E.day(1), E.day(2), E.day(3)])
@@ -139,7 +139,7 @@ struct EnergyLiveSeedStoreTests {
             day: E.day(2), intakeKcal: 2_000,
             evidence: DayIntakeEvidence(loggedMealCount: 1, markedDidNotTrack: true)
         ))
-        #expect(try store.dayIntakes(through: E.noon(3), calendar: E.calendar)
-            == store.dayIntakes(from: E.day(-1_000), through: E.day(3), calendar: E.calendar))
+        #expect(try store.dayIntakes(through: E.noon(3), calendar: E.calendar, ownSourceBundleID: "com.freelunch.nutrition")
+            == store.dayIntakes(from: E.day(-1_000), through: E.day(3), calendar: E.calendar, ownSourceBundleID: "com.freelunch.nutrition"))
     }
 }
