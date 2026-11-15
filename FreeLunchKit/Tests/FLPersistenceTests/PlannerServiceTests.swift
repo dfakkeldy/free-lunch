@@ -61,19 +61,22 @@ import Testing
         let store = try SwiftDataStore.phone(at: .inMemory)
         let date = Date(timeIntervalSince1970: 1_700_000_000)
         let service = PlannerService(store: store, calendar: calendar, now: { date })
-        let plan = PlannedMealData(plannedAt: date, name: "Lunch", note: "Example")
+        let plan = PlannedMealData(plannedAt: date, notificationID: "meal-reminder", name: "Lunch", note: "Example")
         try store.createPlannedMeal(plan)
         let unrelated = MealEntryData(createdAt: date, source: .phone)
         try store.createMeal(unrelated)
         _ = try PlateLifecycleService(store: store).log(mealID: unrelated.id, at: date)
         #expect(try store.plannedMeals()[0].fulfilledBy == nil)
-        let draft = try service.startPlannedMeal(id: plan.id)
+        let draft = try service.startPlannedMeal(id: plan.id).meal
         #expect(draft.note == "Lunch\nExample")
         #expect(try store.plannedMeals()[0].status == .pending)
         try service.discardDraft(id: draft.id)
         #expect(try store.plannedMeals()[0].fulfilledBy == nil)
-        let replacement = try service.startPlannedMeal(id: plan.id)
-        _ = try service.logMeal(id: replacement.id, at: date)
+        let replacement = try service.startPlannedMeal(id: plan.id).meal
+        let logged = try service.logMeal(id: replacement.id, at: date)
+        #expect(logged.reminderChanges.count == 1)
+        #expect(logged.reminderChanges[0].notificationID == "meal-reminder")
+        #expect(logged.reminderChanges[0].newTime == nil)
         #expect(try store.plannedMeals()[0].status == .done)
         #expect(try store.plannedMeals()[0].fulfilledBy == replacement.id)
     }
@@ -101,6 +104,9 @@ import Testing
         let original = try #require(store.plannedShots().first)
         _ = try service.skipShot(id: original.id, activeProfile: profile)
         let first = try #require(store.plannedShots().first { $0.status == .pending })
+        var renamed = profile
+        renamed.name = "Renamed"
+        #expect(try service.profileChanged(from: profile, to: renamed).isEmpty)
         shot.note = "Updated"
         #expect(try service.editShot(shot, activeProfile: profile).isEmpty)
         #expect(try store.plannedShots().first { $0.id == first.id }?.plannedAt == first.plannedAt)
@@ -126,10 +132,10 @@ import Testing
         #expect(try store.plannedMeals().isEmpty)
         try store.createPlannedMeal(plan)
         let service = PlannerService(store: store, calendar: calendar, now: { date })
-        let draft = try service.startPlannedMeal(id: plan.id)
-        #expect(try service.startPlannedMeal(id: plan.id).id == draft.id)
+        let draft = try service.startPlannedMeal(id: plan.id).meal
+        #expect(try service.startPlannedMeal(id: plan.id).meal.id == draft.id)
         try store.deleteMeal(id: draft.id)
-        let replacement = try service.startPlannedMeal(id: plan.id)
+        let replacement = try service.startPlannedMeal(id: plan.id).meal
         _ = try PlateLifecycleService(store: store).log(mealID: replacement.id, at: date)
         _ = try service.lapseOverdueMeals(now: date.addingTimeInterval(172_800))
         #expect(try store.plannedMeals()[0].status == .done)

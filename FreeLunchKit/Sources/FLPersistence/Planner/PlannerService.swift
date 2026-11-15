@@ -13,7 +13,11 @@ public struct PlannerReminderChange: Sendable, Equatable {
 
 public enum PlannerError: Error, Equatable {
     case planNotPending(UUID)
-    case draftAlreadyLinked(UUID)
+}
+
+public struct PlannerMealResult: Sendable {
+    public let meal: MealEntryData
+    public let reminderChanges: [PlannerReminderChange]
 }
 
 @MainActor
@@ -128,15 +132,15 @@ public final class PlannerService {
         }
     }
 
-    public func startPlannedMeal(id: UUID) throws -> MealEntryData {
+    public func startPlannedMeal(id: UUID) throws -> PlannerMealResult {
         try store.withPlannerTransaction {
             var plan = try pendingMeal(id)
             if let linked = plan.fulfilledBy {
                 if let existing = try store.meal(id: linked) {
-                    if existing.state == .draft { return existing }
+                    if existing.state == .draft { return PlannerMealResult(meal: existing, reminderChanges: []) }
                     plan.status = .done
                     try store.updatePlannedMeal(plan)
-                    return existing
+                    return PlannerMealResult(meal: existing, reminderChanges: [cancelMealReminder(plan)])
                 }
                 plan.fulfilledBy = nil
             }
@@ -149,20 +153,22 @@ public final class PlannerService {
             guard let result = try store.meal(id: draft.id) else {
                 throw FreeLunchStoreError.notFound(draft.id)
             }
-            return result
+            return PlannerMealResult(meal: result, reminderChanges: [])
         }
     }
 
     @discardableResult
-    public func logMeal(id: UUID, at date: Date? = nil) throws -> MealEntryData {
+    public func logMeal(id: UUID, at date: Date? = nil) throws -> PlannerMealResult {
         try store.withPlannerTransaction {
             let meal = try plate.log(mealID: id, at: date)
+            var changes: [PlannerReminderChange] = []
             for var plan in try store.plannedMeals()
             where plan.status == .pending && plan.fulfilledBy == id {
                 plan.status = .done
                 try store.updatePlannedMeal(plan)
+                changes.append(cancelMealReminder(plan))
             }
-            return meal
+            return PlannerMealResult(meal: meal, reminderChanges: changes)
         }
     }
 
@@ -203,8 +209,19 @@ public final class PlannerService {
     }
 
     /// Call after changing the active profile or its interval.
-    public func profileChanged(activeProfile: MedicationProfileData?) throws -> [PlannerReminderChange] {
-        try store.withPlannerTransaction { try reproject(activeProfile: activeProfile) }
+    public func profileChanged(from oldProfile: MedicationProfileData?, to newProfile: MedicationProfileData?) throws
+        -> [PlannerReminderChange]
+    {
+        try store.withPlannerTransaction {
+            let before = try projection(oldProfile)
+            let after = try projection(newProfile)
+            return try before == after ? [] : reproject(activeProfile: newProfile)
+        }
+    }
+
+    private func cancelMealReminder(_ plan: PlannedMealData) -> PlannerReminderChange {
+        PlannerReminderChange(
+            planID: plan.id, oldTime: plan.plannedAt, newTime: nil, notificationID: plan.notificationID)
     }
 
     private func clearShotLinks(id: UUID) throws {
