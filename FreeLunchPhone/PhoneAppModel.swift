@@ -387,7 +387,9 @@ final class PhoneAppModel {
             markedDays = try store.didNotTrackDays(calendar: calendar)
             trendPoints = try EnergyBinding.trendSeries(store: store, smoothing: store.energySettings().smoothing).points
             let profiles = try store.medicationProfiles(includingArchived: false)
-            nextDose = NextDose.status(shots: timelineShots, activeProfile: profiles.first, now: now, calendar: calendar)
+            let latestTracked = timelineShots.reversed().first { shot in profiles.contains { $0.id == shot.medicationID } }
+            let activeProfile = latestTracked.flatMap { shot in profiles.first { $0.id == shot.medicationID } }
+            nextDose = NextDose.status(shots: timelineShots, activeProfile: activeProfile, now: now, calendar: calendar)
             let intake = try store.dayIntakes(through: now, calendar: calendar,
                 ownSourceBundleID: ownBundleID, markedDidNotTrack: markedDays)
             intakeEvidence = Dictionary(uniqueKeysWithValues: intake.map { ($0.day, $0.evidence) })

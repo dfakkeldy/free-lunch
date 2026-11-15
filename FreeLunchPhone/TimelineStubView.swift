@@ -38,31 +38,32 @@ struct TimelineStubView: View {
     }
 
     private var content: some View {
-        ScrollViewReader { proxy in
+        let feed = model.timeline
+        return ScrollViewReader { proxy in
             List {
-                if model.nextDose != nil || !model.timeline.upcoming.isEmpty {
+                if model.nextDose != nil || !feed.upcoming.isEmpty {
                     Section("Upcoming") {
                         if let status = model.nextDose {
                             NextDoseRow(status: status)
                         }
-                        ForEach(model.timeline.upcoming) { item in
+                        ForEach(feed.upcoming) { item in
                             TimelineCard(model: model, item: item)
                         }
                     }
                     .accessibilityIdentifier("timeline.upcoming")
                 }
                 Section {
-                    if model.timeline.today.items.isEmpty && model.meals.isEmpty {
+                    if feed.today.items.isEmpty && model.meals.isEmpty {
                         EmptyTimelineView(model: model)
                     }
-                    ForEach(model.timeline.today.items) { item in
+                    ForEach(feed.today.items) { item in
                         TimelineCard(model: model, item: item)
                     }
                 } header: {
-                    TimelineDayHeader(model: model, day: model.timeline.today.day, isToday: true)
+                    TimelineDayHeader(model: model, day: feed.today.day, isToday: true)
                         .id("timeline.today")
                 }
-                ForEach(model.timeline.past) { day in
+                ForEach(feed.past) { day in
                     Section {
                         ForEach(day.items) { item in
                             TimelineCard(model: model, item: item)

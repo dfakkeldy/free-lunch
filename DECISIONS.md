@@ -8,7 +8,10 @@ records the code-level choices made here.
 The timeline shows every day in the preceding 30 calendar days, including
 empty days, and older days with visible records or a didn't-track mark.
 This makes the empty state available without manufacturing an unlimited list
-of empty dates. Drafts stay under Today until they are logged.
+of empty dates. Drafts stay under Today until they are logged. Older
+reconstructed-only days will appear when their summary cards are implemented.
+The schema has no selected medication profile; the next-dose card uses the
+unarchived profile of the most recent shot until a selection exists.
 
 ## 2026-11-15 — Formula grammar: units, literals, unary minus, caps
 
