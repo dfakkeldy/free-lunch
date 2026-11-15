@@ -53,16 +53,15 @@ struct TimelineStubView: View {
                     .accessibilityIdentifier("timeline.upcoming")
                 }
                 Section {
+                    TimelineDayHeader(model: model, day: feed.today.day, isToday: true)
+                        .id("timeline.today")
                     if feed.today.items.isEmpty && model.meals.isEmpty {
                         EmptyTimelineView(model: model)
                     }
                     ForEach(feed.today.items) { item in
                         TimelineCard(model: model, item: item)
                     }
-                } header: {
-                    TimelineDayHeader(model: model, day: feed.today.day, isToday: true)
                 }
-                .id("timeline.today")
                 ForEach(feed.past) { day in
                     Section {
                         ForEach(day.items) { item in
@@ -75,7 +74,9 @@ struct TimelineStubView: View {
             }
             .onChange(of: model.flow.postLog != nil) { _, shown in
                 if !shown {
-                    DispatchQueue.main.async { proxy.scrollTo("timeline.today", anchor: .top) }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        proxy.scrollTo("timeline.today", anchor: .top)
+                    }
                 }
             }
         }
