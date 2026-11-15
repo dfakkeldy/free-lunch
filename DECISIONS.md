@@ -20,7 +20,14 @@ records the code-level choices made here.
   External UUID metadata links writes to meal IDs without a schema field.
   Replacement writes save before deleting older linked samples; export failure
   preserves local logging. Callers use `writeMeal` after persisting edits or
-  watch delivery. No HealthKit type enters the energy engine.
+  watch delivery. These are package APIs; the current plate lifecycle does not
+  call them. App-level log/edit/delete wiring belongs to the phone integration
+  work, including watch delivery. No HealthKit type enters the energy engine.
+- Source identity is mandatory at reconstruction and recompute call sites and
+  comes from the writing adapter in production. There is no bundle-ID fallback.
+- Reconstruction sums all outside sources, as the current boundary specifies.
+  It cannot identify duplicate food across outside apps. Source selection or
+  priority is a separate product decision; no heuristic deduplication is applied.
 
 ## 2026-11-03 — Exposure curve math
 

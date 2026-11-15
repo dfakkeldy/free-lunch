@@ -44,7 +44,7 @@ extension EnergyBinding {
         today: Date,
         historyFrom: Date,
         calendar: Calendar,
-        ownSourceBundleID: String = "com.freelunch.nutrition",
+        ownSourceBundleID: String,
         weights: ((TrendSmoothing) throws -> TrendSeries)? = nil
     ) throws -> EnergyRecomputeKey {
         let settings = try store.energySettings()
@@ -79,7 +79,7 @@ public final class EnergyRecomputeCoordinator<Store: MealStore & TargetStore & D
     public init(
         store: Store,
         calendar: Calendar,
-        ownSourceBundleID: String = "com.freelunch.nutrition",
+        ownSourceBundleID: String,
         today: Date,
         historyFrom: Date,
         weights: ((TrendSmoothing) throws -> TrendSeries)? = nil,

@@ -174,7 +174,7 @@ struct EnergySettingsDefaultsTests {
         // The engine reads it on 8 January in the new zone, not on the 7th.
         let key = try EnergyBinding.key(
             store: store, today: westDay.addingTimeInterval(12 * 3_600), historyFrom: westDay,
-            calendar: west, weights: { _ in E.weights }
+            calendar: west, ownSourceBundleID: "com.freelunch.nutrition", weights: { _ in E.weights }
         )
         #expect(key.intake.map(\.day) == [westDay])
         #expect(key.intake.first?.evidence.markedDidNotTrack == true)

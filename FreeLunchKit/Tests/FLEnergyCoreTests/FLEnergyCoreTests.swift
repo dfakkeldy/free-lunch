@@ -20,7 +20,7 @@ struct FLEnergyCoreTests {
             for line in text.components(separatedBy: .newlines) {
                 let code = line.components(separatedBy: "//")[0]
                 if code.contains("import ") { #expect(code.trimmingCharacters(in: .whitespaces) == "import Foundation") }
-                #expect(code.range(of: #"\b(HK\w*|HealthKit|\w*[Ww]orkout\w*|\w*[Aa]ctivity\w*)\b"#, options: .regularExpression) == nil)
+                #expect(code.range(of: #"\b(\w*HK\w*|HealthKit|\w*[Ww]orkout\w*|\w*[Aa]ctivity\w*|\w*[Aa]ctiveEnergy\w*|\w*[Bb]asalEnergy\w*|\w*[Ee]xercise\w*|\w*[Ss]tep\w*)\b"#, options: .regularExpression) == nil)
             }
         }
         #expect(checked > 0)

@@ -128,13 +128,20 @@ fileprivate extension DietarySampleData {
 }
 
 @MainActor
-extension DietaryStore where Self: WeightStore {
-    /// Correction-aware mirror totals, for the energy binding and summary cards.
+extension DietaryStore where Self: WeightStore & MealStore {
+    /// Corrected mirror totals on days without native meals, shared by the engine and summary cards.
     public func reconstructedNutritionDays(from first: Date, through last: Date, calendar: Calendar,
-            ownSourceBundleID: String = "com.freelunch.nutrition") throws -> [ReconstructedNutritionDay] {
-        CorrectedNutritionView.derive(
+            ownSourceBundleID: String) throws -> [ReconstructedNutritionDay] {
+        let start = calendar.startOfDay(for: first)
+        guard let end = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: last)),
+              start < end else { return [] }
+        let nativeDays = Set(try loggedMeals(in: DateInterval(start: start, end: end))
+            .filter { $0.source != .healthKitImport }
+            .compactMap { $0.loggedAt.map { calendar.startOfDay(for: $0) } })
+        return CorrectedNutritionView.derive(
             samples: try dietarySamples(from: first, through: last, calendar: calendar, includingDeletedInHK: false),
             corrections: try corrections(targetKind: .hkNutritionDay),
             ownSourceBundleID: ownSourceBundleID, calendar: calendar)
+            .filter { !nativeDays.contains($0.day) }
     }
 }

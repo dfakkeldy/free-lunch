@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // FLEnergyCore bound to the store: the engine's inputs read from stored
-// meals, the live series and calculated target recomputed from them, and
+// meals and the corrected dietary mirror, the live series and calculated target recomputed from them, and
 // the triggers that say when to recompute (spec §3).
 //
 // Everything here is derived and recomputable, never canonical (spec §3
 // "Recompute"). Nothing in this file writes to the store: a recomputation
-// reads meals and the target ledger and returns values, so a backfill edit
+// reads meals, the dietary mirror, corrections and the target ledger and returns values, so a backfill edit
 // moves expenditure and the calculated target and cannot reach an adopted
 // TargetPeriod (spec §3 acceptance #4).
 //
@@ -37,7 +37,7 @@ extension MealStore where Self: DietaryStore & WeightStore {
         from first: Date,
         through last: Date,
         calendar: Calendar,
-        ownSourceBundleID: String = "com.freelunch.nutrition",
+        ownSourceBundleID: String,
         markedDidNotTrack: Set<Date> = []
     ) throws -> [DayIntake] {
         let start = calendar.startOfDay(for: first)
@@ -58,7 +58,7 @@ extension MealStore where Self: DietaryStore & WeightStore {
     public func dayIntakes(
         through last: Date,
         calendar: Calendar,
-        ownSourceBundleID: String = "com.freelunch.nutrition",
+        ownSourceBundleID: String,
         markedDidNotTrack: Set<Date> = []
     ) throws -> [DayIntake] {
         let lastDay = calendar.startOfDay(for: last)
@@ -74,7 +74,7 @@ extension MealStore where Self: DietaryStore & WeightStore {
     private func dayIntakes(
         in interval: DateInterval,
         calendar: Calendar,
-        ownSourceBundleID: String = "com.freelunch.nutrition",
+        ownSourceBundleID: String,
         markedDidNotTrack: Set<Date>
     ) throws -> [DayIntake] {
         let start = interval.start
@@ -215,7 +215,7 @@ public enum EnergyBinding {
         schedule: FormulaActivationSchedule,
         rateGoal: RateGoal,
         calendar: Calendar,
-        ownSourceBundleID: String = "com.freelunch.nutrition",
+        ownSourceBundleID: String,
         markedDidNotTrack: Set<Date> = []
     ) throws -> EnergyRecomputeKey {
         let day = calendar.startOfDay(for: today)
@@ -261,7 +261,7 @@ public enum EnergyBinding {
         schedule: FormulaActivationSchedule,
         rateGoal: RateGoal,
         calendar: Calendar,
-        ownSourceBundleID: String = "com.freelunch.nutrition",
+        ownSourceBundleID: String,
         markedDidNotTrack: Set<Date> = []
     ) throws -> LiveEnergy {
         let key = try key(

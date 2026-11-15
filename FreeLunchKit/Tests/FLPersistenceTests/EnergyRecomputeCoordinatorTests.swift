@@ -58,7 +58,7 @@ private func makeCoordinator(
     counter: RecomputeCounter
 ) -> EnergyRecomputeCoordinator<SwiftDataStore> {
     EnergyRecomputeCoordinator(
-        store: store, calendar: E.calendar, today: E.noon(25), historyFrom: E.day(21),
+        store: store, calendar: E.calendar, ownSourceBundleID: "com.freelunch.nutrition", today: E.noon(25), historyFrom: E.day(21),
         compute: { key in
             counter.record(key)
             return try EnergyBinding.recompute(store: store, key: key, calendar: E.calendar)
@@ -144,7 +144,7 @@ struct EnergyRecomputeCoordinatorTests {
         let independent = try EnergyBinding.recompute(
             store: store, today: E.noon(25), historyFrom: E.day(21),
             weights: TrendWeight.series(samples: samples, smoothing: try #require(TrendSmoothing(alpha: 0.25))),
-            schedule: FormulaActivationSchedule(), rateGoal: .maintenance, calendar: E.calendar
+            schedule: FormulaActivationSchedule(), rateGoal: .maintenance, calendar: E.calendar, ownSourceBundleID: "com.freelunch.nutrition"
         )
         #expect(after.evaluation == independent.evaluation)
         let afterEstimate = try #require(after.evaluation.estimate)
@@ -239,7 +239,7 @@ struct EnergyRecomputeCoordinatorTests {
         var shouldFail = false
         var runs = 0
         let coordinator = EnergyRecomputeCoordinator(
-            store: store, calendar: E.calendar, today: E.noon(25), historyFrom: E.day(21),
+            store: store, calendar: E.calendar, ownSourceBundleID: "com.freelunch.nutrition", today: E.noon(25), historyFrom: E.day(21),
             compute: { key in
                 runs += 1
                 if shouldFail { throw Boom() }

@@ -19,7 +19,7 @@ struct HealthDietarySyncTests {
         health.dietaryJournal = [.added(sample), .deleted(sample.hkUUID), .deleted(uid(899))]
         #expect(try await sync.sync() == .synced(upserted: 1, markedDeleted: 1, skipped: 0))
         #expect(try store.dietarySamples(from: E.day(2), through: E.day(2), calendar: E.calendar, includingDeletedInHK: true).first?.deletedInHK == true)
-        #expect(try store.dayIntakes(through: E.day(2), calendar: E.calendar).isEmpty)
+        #expect(try store.dayIntakes(through: E.day(2), calendar: E.calendar, ownSourceBundleID: "com.freelunch.nutrition").isEmpty)
         #expect(try await sync.sync() == .synced(upserted: 0, markedDeleted: 0, skipped: 0))
         #expect(anchors.anchor(for: .bodyMass) == nil)
     }
@@ -96,7 +96,7 @@ struct HealthDietarySyncTests {
         let store = try makeInMemoryStore()
         try store.createMeal(MealEntryData(id: uid(813), state: .logged, createdAt: E.noon(2),
             loggedAt: E.noon(2), source: .healthKitImport))
-        #expect(try store.dayIntakes(through: E.day(2), calendar: E.calendar).isEmpty)
+        #expect(try store.dayIntakes(through: E.day(2), calendar: E.calendar, ownSourceBundleID: "com.freelunch.nutrition").isEmpty)
     }
 
     @Test("corrections replace and exclude totals, validate payloads, and leave native days alone")
@@ -106,8 +106,8 @@ struct HealthDietarySyncTests {
         let key = CorrectedNutritionView.dayKey(E.day(2), calendar: E.calendar)
         try store.addCorrection(CorrectionData(createdAt: E.day(3), targetKind: .hkNutritionDay, targetID: key, action: .replace,
             replacement: NutritionDayReplacement(energy: Kilocalories(350), protein: Grams(20)).encoded()))
-        #expect(try store.dayIntakes(through: E.day(2), calendar: E.calendar).first?.intakeKcal == 350)
-        #expect(try store.reconstructedNutritionDays(from: E.day(2), through: E.day(2), calendar: E.calendar).first?.totals.proteinG == 20)
+        #expect(try store.dayIntakes(through: E.day(2), calendar: E.calendar, ownSourceBundleID: "com.freelunch.nutrition").first?.intakeKcal == 350)
+        #expect(try store.reconstructedNutritionDays(from: E.day(2), through: E.day(2), calendar: E.calendar, ownSourceBundleID: "com.freelunch.nutrition").first?.totals.proteinG == 20)
         #expect(throws: WeightStoreError.self) {
             try store.addCorrection(CorrectionData(createdAt: E.day(3), targetKind: .hkNutritionDay, targetID: key, action: .replace, replacement: Data("{}".utf8)))
         }
@@ -115,11 +115,11 @@ struct HealthDietarySyncTests {
             try store.addCorrection(CorrectionData(createdAt: E.day(3), targetKind: .hkNutritionDay, targetID: "2026-02-30", action: .exclude))
         }
         try store.addCorrection(CorrectionData(createdAt: E.day(4), targetKind: .hkNutritionDay, targetID: key, action: .exclude))
-        #expect(try store.dayIntakes(through: E.day(2), calendar: E.calendar).isEmpty)
+        #expect(try store.dayIntakes(through: E.day(2), calendar: E.calendar, ownSourceBundleID: "com.freelunch.nutrition").isEmpty)
         try store.createMeal(MealEntryData(id: uid(814), state: .logged, createdAt: E.noon(2),
             loggedAt: E.noon(2), items: [MealItemData(id: uid(815), order: 0, foodID: nil,
                 adHocName: "Synthetic food", quantity: Grams(100), nutrition: E.kcal(600), provenance: .typed)], source: .phone))
-        let native = try store.dayIntakes(through: E.day(2), calendar: E.calendar)
+        let native = try store.dayIntakes(through: E.day(2), calendar: E.calendar, ownSourceBundleID: "com.freelunch.nutrition")
         #expect(native.first?.intakeKcal == 600)
         #expect(native.first?.evidence.hasReconstructedDietaryEnergy == false)
     }

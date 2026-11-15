@@ -41,7 +41,7 @@ struct StoredDayIntakeTests {
         try plate(7, day: 9, hour: 12, kcal: [5_000])               // outside the range
 
         let intakes = try store.dayIntakes(
-            from: E.noon(1), through: E.noon(5), calendar: E.calendar,
+            from: E.noon(1), through: E.noon(5), calendar: E.calendar, ownSourceBundleID: "com.freelunch.nutrition",
             markedDidNotTrack: [E.noon(4), E.morning(5), E.noon(8)]
         )
         #expect(intakes == [
@@ -54,7 +54,7 @@ struct StoredDayIntakeTests {
             ),
             DayIntake(day: E.day(5), intakeKcal: 0, evidence: DayIntakeEvidence(markedDidNotTrack: true))
         ])
-        #expect(try store.dayIntakes(from: E.day(5), through: E.day(1), calendar: E.calendar).isEmpty)
+        #expect(try store.dayIntakes(from: E.day(5), through: E.day(1), calendar: E.calendar, ownSourceBundleID: "com.freelunch.nutrition").isEmpty)
     }
 
     @Test("a day with a native meal and an import uses native intake only; removing the native meal flips it to the reconstruction")
@@ -75,14 +75,17 @@ struct StoredDayIntakeTests {
         try plate(2, hour: 9, kcal: 600, source: .phone)
         try plate(3, hour: 19, kcal: 900, source: .watchQuickLog)
 
+        #expect(try store.reconstructedNutritionDays(from: E.day(6), through: E.day(6),
+            calendar: E.calendar, ownSourceBundleID: "com.freelunch.nutrition").isEmpty)
+
         // Native 600 + 900 = 1500; the imported 2200 is ignored, never added.
-        #expect(try store.dayIntakes(from: E.day(6), through: E.day(6), calendar: E.calendar) == [
+        #expect(try store.dayIntakes(from: E.day(6), through: E.day(6), calendar: E.calendar, ownSourceBundleID: "com.freelunch.nutrition") == [
             DayIntake(day: E.day(6), intakeKcal: 1_500, evidence: DayIntakeEvidence(loggedMealCount: 2))
         ])
 
         try store.deleteMeal(id: uid(2))
         try store.deleteMeal(id: uid(3))
-        #expect(try store.dayIntakes(from: E.day(6), through: E.day(6), calendar: E.calendar) == [
+        #expect(try store.dayIntakes(from: E.day(6), through: E.day(6), calendar: E.calendar, ownSourceBundleID: "com.freelunch.nutrition") == [
             DayIntake(day: E.day(6), intakeKcal: 2_200, evidence: DayIntakeEvidence(hasReconstructedDietaryEnergy: true))
         ])
     }
@@ -101,7 +104,7 @@ struct EnergyRecomputeTriggerTests {
     ) throws -> EnergyRecomputeKey {
         try EnergyBinding.key(
             store: store, today: E.noon(today), historyFrom: E.day(21), weights: weights,
-            schedule: schedule, rateGoal: E.rate(rate), calendar: E.calendar, markedDidNotTrack: marks
+            schedule: schedule, rateGoal: E.rate(rate), calendar: E.calendar, ownSourceBundleID: "com.freelunch.nutrition", markedDidNotTrack: marks
         )
     }
 
@@ -116,7 +119,7 @@ struct EnergyRecomputeTriggerTests {
         // A later instant on the same day is the same day.
         let sameDay = try EnergyBinding.key(
             store: store, today: E.day(25).addingTimeInterval(23 * 3_600), historyFrom: E.day(21),
-            weights: E.weights, schedule: FormulaActivationSchedule(), rateGoal: E.rate(-0.5), calendar: E.calendar
+            weights: E.weights, schedule: FormulaActivationSchedule(), rateGoal: E.rate(-0.5), calendar: E.calendar, ownSourceBundleID: "com.freelunch.nutrition"
         )
         #expect(EnergyRecomputeReason.reasons(from: base, to: sameDay).isEmpty)
 
@@ -185,7 +188,7 @@ struct StoredPauseHonestyTests {
         let marks = Set((20...27).map(E.noon))
         let live = try EnergyBinding.recompute(
             store: store, today: E.noon(28), historyFrom: E.day(25), weights: E.weights,
-            schedule: FormulaActivationSchedule(), rateGoal: E.rate(-0.5), calendar: E.calendar,
+            schedule: FormulaActivationSchedule(), rateGoal: E.rate(-0.5), calendar: E.calendar, ownSourceBundleID: "com.freelunch.nutrition",
             markedDidNotTrack: marks
         )
         #expect(live.history.days.map(\.state) == [.tracking, .tracking, .tracking, .pausedInsufficientIntake])

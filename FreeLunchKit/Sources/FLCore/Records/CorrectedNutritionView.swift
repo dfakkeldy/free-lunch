@@ -54,10 +54,11 @@ public enum CorrectedNutritionView {
         let groups = Dictionary(grouping: samples.filter { !$0.deletedInHK && $0.sourceBundleID != ownSourceBundleID }) {
             calendar.startOfDay(for: $0.date)
         }
+        let correctionsByDay = Dictionary(grouping: corrections.filter { $0.targetKind == .hkNutritionDay }, by: \.targetID)
         return groups.keys.sorted().compactMap { day in
             let rows = groups[day]!
             let key = dayKey(day, calendar: calendar)
-            let correction = corrections.filter {
+            let correction = (correctionsByDay[key] ?? []).filter {
                 $0.targetKind == .hkNutritionDay && $0.targetID == key &&
                 ($0.action == .exclude || $0.replacement.flatMap { try? NutritionDayReplacement.decode($0) }?.isValid == true)
             }.max {

@@ -41,7 +41,7 @@ private func adopt(
     let schedule = FormulaActivationSchedule(initial: formula)
     let live = try EnergyBinding.recompute(
         store: store, today: E.noon(offset), historyFrom: E.day(offset), weights: E.weights,
-        schedule: schedule, rateGoal: E.rate(-0.5), calendar: E.calendar
+        schedule: schedule, rateGoal: E.rate(-0.5), calendar: E.calendar, ownSourceBundleID: "com.freelunch.nutrition"
     )
     let calculated = try #require(live.calculatedTarget)
     return try store.adoptTarget(
@@ -55,7 +55,7 @@ private func renderedLedger(_ store: SwiftDataStore, through offset: Int) throws
     EnergyHistory.render(
         ledger: try store.targetLedger(),
         through: E.day(offset),
-        intake: try store.dayIntakes(from: E.day(-30), through: E.day(offset), calendar: E.calendar),
+        intake: try store.dayIntakes(from: E.day(-30), through: E.day(offset), calendar: E.calendar, ownSourceBundleID: "com.freelunch.nutrition"),
         weights: E.weights,
         calendar: E.calendar
     )
@@ -100,7 +100,7 @@ struct StoreAdoptedTargetImmutabilityTests {
         let schedule = FormulaActivationSchedule()
         let before = try EnergyBinding.recompute(
             store: store, today: E.noon(25), historyFrom: E.day(21), weights: E.weights,
-            schedule: schedule, rateGoal: E.rate(-0.5), calendar: E.calendar
+            schedule: schedule, rateGoal: E.rate(-0.5), calendar: E.calendar, ownSourceBundleID: "com.freelunch.nutrition"
         )
         #expect(before.today?.displayedKcalPerDay == 2_481.25)
         #expect(before.calculatedTarget?.kcalPerDay == 1_931.25)
@@ -115,7 +115,7 @@ struct StoreAdoptedTargetImmutabilityTests {
         )
         let after = try EnergyBinding.recompute(
             store: store, today: E.noon(25), historyFrom: E.day(21), weights: E.weights,
-            schedule: schedule, rateGoal: E.rate(-0.5), calendar: E.calendar
+            schedule: schedule, rateGoal: E.rate(-0.5), calendar: E.calendar, ownSourceBundleID: "com.freelunch.nutrition"
         )
         #expect(EnergyRecomputeReason.reasons(from: before.key, to: after.key) == [.intakeChanged])
         #expect(after.today?.displayedKcalPerDay == 2_581.25)
@@ -138,7 +138,7 @@ struct StoreAdoptedTargetImmutabilityTests {
         try store.removeItem(id: uid(7_001))
         let reverted = try EnergyBinding.recompute(
             store: store, today: E.noon(25), historyFrom: E.day(21), weights: E.weights,
-            schedule: schedule, rateGoal: E.rate(-0.5), calendar: E.calendar
+            schedule: schedule, rateGoal: E.rate(-0.5), calendar: E.calendar, ownSourceBundleID: "com.freelunch.nutrition"
         )
         #expect(reverted.calculatedTarget?.kcalPerDay == 1_931.25)
         #expect(try E.bytes(store.targetLedger()) == ledgerBytes)
@@ -164,7 +164,7 @@ struct StoreAdoptedTargetImmutabilityTests {
         )
         let afterCorrection = try EnergyBinding.recompute(
             store: store, today: E.noon(25), historyFrom: E.day(21), weights: corrected,
-            schedule: schedule, rateGoal: E.rate(-0.5), calendar: E.calendar
+            schedule: schedule, rateGoal: E.rate(-0.5), calendar: E.calendar, ownSourceBundleID: "com.freelunch.nutrition"
         )
         #expect(EnergyRecomputeReason.reasons(from: reverted.key, to: afterCorrection.key).contains(.weightChanged))
         #expect(afterCorrection.calculatedTarget?.kcalPerDay != reverted.calculatedTarget?.kcalPerDay)
@@ -244,7 +244,7 @@ struct StoreVersionPinningTests {
         // switches to v2 on day 28 and not before.
         let live = try EnergyBinding.recompute(
             store: store, today: E.noon(30), historyFrom: E.day(21), weights: E.weights,
-            schedule: schedule, rateGoal: E.rate(-0.5), calendar: E.calendar
+            schedule: schedule, rateGoal: E.rate(-0.5), calendar: E.calendar, ownSourceBundleID: "com.freelunch.nutrition"
         )
         #expect(live.history.label == .asRecorded)
         #expect(live.history.days.count == 10)
@@ -300,7 +300,7 @@ struct StoreVersionPinningTests {
         let ledgerBefore = try E.bytes(store.targetLedger())
         let formulasBefore = try store.formulaVersions()
 
-        let intake = try store.dayIntakes(from: E.day(-30), through: E.day(27), calendar: E.calendar)
+        let intake = try store.dayIntakes(from: E.day(-30), through: E.day(27), calendar: E.calendar, ownSourceBundleID: "com.freelunch.nutrition")
         let rerun = EnergyHistory.rerun(
             with: E.v2, from: E.day(21), through: E.day(27),
             intake: intake, weights: E.weights, calendar: E.calendar
