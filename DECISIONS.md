@@ -3,6 +3,12 @@
 Newest first. Product decisions live in the private planning repo; this log
 records the code-level choices made here.
 
+## 2026-11-15 — Planner service choices
+
+- Skipping a shot creates no replacement until another shot event changes the projection. Reconciliation does not undo a skip at the projected time.
+- A planned meal's name and optional note prefill the draft's note, on separate lines. Its pending link identifies that draft; only logging the linked draft completes the plan. Discarding clears the link, and an unlogged draft does not prevent end-of-day lapse.
+- Planner operations return reminder changes for a notification integration to apply. Callers route shot and linked-draft lifecycle events through the service.
+
 ## 2026-11-15 — Weight lane series
 
 The lane reads the engine's corrected trend using the persisted smoothing
