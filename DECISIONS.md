@@ -1,3 +1,11 @@
+## 2026-11-15 — Watch quick logging contract
+
+- A food tap at exactly ten minutes after the preceding watch food tap joins the same meal. The anchor survives acknowledgement in UserDefaults.
+- WatchMealPayload carries meal identity, state, source, dates, hunger and item identity, food identity and grams. The phone resolves catalog nutrition when applying it. For appends only mealID and items are authoritative; other meal fields must not overwrite the original. Appends have their own outbox identity and name the meal as subject; old phone builds cannot decode the new kind and do not acknowledge it.
+- Food taps stay in memory for five seconds before enqueueing so undo cannot reach the phone. A force-quit or system termination before the hold is committed loses the tap. The app must call `commitPending` on becoming inactive, ending undo early; it must retry a failed flush. Subsequent activation retries persisted records.
+- The watch tracks only drafts it created. The phone does not report draft closure, so a retained reference can send a later hunger edit to a draft already logged or deleted on the phone. A caller can clear it when closure is known, but resolving this reliably needs phone-to-watch draft state; this remains an open product and sync issue.
+- Phone application of a logged item must also update catalog usage if it should affect recent-food ranking; adding an item alone does not do so.
+
 # Decisions
 
 Newest first. Product decisions live in the private planning repo; this log
