@@ -86,7 +86,7 @@ final class PhoneStoreApplier: WatchOutboxApplying {
             if try store.meal(id: item.subjectID) == nil {
                 try store.createMeal(MealEntryData(id: item.subjectID, createdAt: item.queuedAt, source: .watchQuickLog))
             }
-        case .hungerEdit:
+        case .hungerEdit, .mealAppend:
             break
         }
     }
