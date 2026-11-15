@@ -75,6 +75,24 @@ targets:
     dependencies:
       - package: FreeLunchKit
         product: FLCore
+      - target: FreeLunchWatchComplication
+        embed: true
+
+  FreeLunchWatchComplication:
+    type: app-extension
+    platform: watchOS
+    sources:
+      - FreeLunchWatchComplication
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.freelunch.nutrition.watchkitapp.complication
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_FILE: FreeLunchWatchComplication/Info.plist
+        CODE_SIGN_ENTITLEMENTS: FreeLunchWatchComplication/FreeLunchWatchComplication.entitlements
+        SKIP_INSTALL: YES
+    dependencies:
+      - package: FreeLunchKit
+        product: FLCore
 
   FreeLunchPhoneUITests:
     type: bundle.ui-testing

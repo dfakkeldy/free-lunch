@@ -26,6 +26,7 @@ import Foundation
 public final class WatchSyncCoordinator: WatchSyncReceiving {
     private let store: any WatchWorkingSetStore
     private let transport: any WatchSyncTransport
+    public var digestApplied: ((WatchDigestData) -> Void)?
 
     /// The digest the watch is showing, or nil before the first one.
     public private(set) var digest: WatchDigestData?
@@ -81,5 +82,6 @@ public final class WatchSyncCoordinator: WatchSyncReceiving {
         if let digest, incoming.generatedAt < digest.generatedAt || incoming == digest { return }
         try store.replaceRecentFoods(incoming.recentFoods)
         digest = incoming
+        digestApplied?(incoming)
     }
 }
