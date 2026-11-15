@@ -61,8 +61,8 @@ struct TimelineStubView: View {
                     }
                 } header: {
                     TimelineDayHeader(model: model, day: feed.today.day, isToday: true)
-                        .id("timeline.today")
                 }
+                .id("timeline.today")
                 ForEach(feed.past) { day in
                     Section {
                         ForEach(day.items) { item in
@@ -74,7 +74,7 @@ struct TimelineStubView: View {
                 }
             }
             .onChange(of: model.flow.postLog != nil) { _, shown in
-                if shown {
+                if !shown {
                     DispatchQueue.main.async { proxy.scrollTo("timeline.today", anchor: .top) }
                 }
             }
