@@ -1,5 +1,17 @@
 # Decisions
 
+## 2026-11-15 — Watch next-dose complication
+
+The complication stores its projection and pending local-shot timestamp in the
+watch App Group. The optional interval in the format-1 digest permits local
+projection; older digests without it remain readable. A local shot requests one
+reload, an unchanged phone echo requests none, and a digest made before that
+shot cannot replace its projection. The extension uses a finite timeline and
+asks WidgetKit for another at its horizon. The Watch root and phone publisher
+will connect the bridge when their sync and shot-logging entry points exist.
+The App Group must be registered for both Watch bundle identifiers for signed
+releases.
+
 Newest first. Product decisions live in the private planning repo; this log
 records the code-level choices made here.
 
