@@ -58,12 +58,12 @@ public struct WatchQuickLogAnchor: Codable, Sendable, Equatable {
     }
 
     @discardableResult public func tap(foodID: UUID, lastPortionGrams: Double, steps: Int = 0) throws -> UUID {
-        try flush()
         guard let grams = WatchQuickLogRules.portion(lastPortionGrams: lastPortionGrams, steps: steps) else {
             throw QuickLogError.invalidPortion
         }
         let item = Pending(id: UUID(), foodID: foodID, grams: grams, at: clock())
         pending.append(item)
+        do { try flush() } catch { lastError = error }
         Task { [weak self] in
             try? await Task.sleep(for: .seconds(5))
             guard let self else { return }
@@ -80,9 +80,14 @@ public struct WatchQuickLogAnchor: Codable, Sendable, Equatable {
     }
 
     /// Call after a foreground transition, and retry after any reported error.
-    public func flush() throws {
+    public func flush() throws { try flush(force: false) }
+
+    /// Persist pending taps before the scene becomes inactive, ending undo early.
+    public func commitPending() throws { try flush(force: true) }
+
+    private func flush(force: Bool) throws {
         let now = clock()
-        while let item = pending.first, now.timeIntervalSince(item.at) >= WatchQuickLogRules.undoInterval {
+        while let item = pending.first, force || now.timeIntervalSince(item.at) >= WatchQuickLogRules.undoInterval {
             let previous = state.anchor
             let append = previous.map { WatchQuickLogRules.coalesces(lastTapAt: $0.lastTapAt, tapAt: item.at) } ?? false
             let mealID = append ? previous!.mealID : UUID()
@@ -115,7 +120,7 @@ public struct WatchQuickLogAnchor: Codable, Sendable, Equatable {
         if let draft = state.draftID {
             try store.enqueueHungerEdit(.init(mealID: draft, hunger: hunger, editedAt: clock()))
             try sync.sendOutbox()
-        } else { _ = try marker(hunger: hunger) }
+        } else if let hunger { _ = try marker(hunger: hunger) }
     }
 
     /// The caller clears the watch-created draft after it is closed on the phone.
