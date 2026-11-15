@@ -3,6 +3,12 @@
 Newest first. Product decisions live in the private planning repo; this log
 records the code-level choices made here.
 
+## 2026-11-15 — Weight lane series
+
+The lane reads the engine's corrected trend using the persisted smoothing setting. Trend lines split at undefined points and when consecutive defined samples are more than seven elapsed days apart; exactly seven days remains connected. Statistics use the trend as of each endpoint, with no interpolation, and are absent if an endpoint is undefined. Preset month and year ranges use calendar arithmetic; All starts at the first sample or ends immediately when empty.
+
+Changing α recomputes the energy result. Under FL-EB v1 it cannot change tracking or pause definedness, so the §6 cascade fixture pins a target-floor warning flip while the evaluation state stays the same.
+
 ## 2026-11-15 — Formula grammar: units, literals, unary minus, caps
 
 `FormulaParser.parse` (FLEnergyCore) turns §4 formula text into a
