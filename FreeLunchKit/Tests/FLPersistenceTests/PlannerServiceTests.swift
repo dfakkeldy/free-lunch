@@ -22,6 +22,7 @@ import Testing
         #expect(try service.reconcile(activeProfile: nil).isEmpty)
         #expect(try service.reconcile(activeProfile: profile).count == 1)
         let plan = try #require(store.plannedShots().first)
+        #expect(plan.notificationID == plan.id.uuidString)
         let moved = start.addingTimeInterval(1234)
         _ = try service.moveShot(id: plan.id, to: moved)
         #expect(try service.reconcile(activeProfile: profile).isEmpty)
@@ -41,6 +42,7 @@ import Testing
         #expect(reschedule.count == 1)
         #expect(reschedule[0].planID == next.id)
         #expect(reschedule[0].oldTime == next.plannedAt)
+        #expect(reschedule[0].notificationID == next.notificationID)
         #expect(try store.plannedShots().filter { $0.status == .pending }.count == 1)
     }
 

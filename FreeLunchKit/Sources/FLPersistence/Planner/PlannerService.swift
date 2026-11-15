@@ -153,7 +153,8 @@ public final class PlannerService {
     }
 
     private func create(at date: Date) throws -> PlannerReminderChange {
-        let plan = PlannedShotData(plannedAt: date)
+        let id = UUID()
+        let plan = PlannedShotData(id: id, plannedAt: date, notificationID: id.uuidString)
         try store.createPlannedShot(plan)
         return change(plan, old: nil, new: date)
     }
