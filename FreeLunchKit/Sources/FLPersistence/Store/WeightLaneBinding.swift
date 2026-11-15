@@ -2,7 +2,8 @@
 import FLEnergyCore
 
 public enum WeightLaneBinding {
-    /// Reads the same corrected samples and persisted smoothing as the energy engine.
+    /// Reads the corrected samples and persisted smoothing used by the engine's
+    /// default weights source. A coordinator with an injected source may differ.
     @MainActor
     public static func series(store: some WeightStore & EnergySettingsStore) throws -> WeightLaneSeries {
         let smoothing = try store.energySettings().smoothing

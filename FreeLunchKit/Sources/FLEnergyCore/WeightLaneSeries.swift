@@ -27,6 +27,7 @@ public struct WeightLaneSeries: Sendable, Hashable {
         return result
     }
 
+    /// Trend values and changes in kilograms.
     public struct Stats: Sendable, Hashable {
         public let current: Double?
         public let delta7Days: Double?
@@ -35,14 +36,14 @@ public struct WeightLaneSeries: Sendable, Hashable {
     }
 
     public func stats(now: Date, visibleRange: ClosedRange<Date>) -> Stats {
-        func delta(_ end: Date, _ start: Date) -> Double? {
+        func delta(end: Date, start: Date) -> Double? {
             guard let a = series.trend(asOf: end), let b = series.trend(asOf: start) else { return nil }
             return a - b
         }
         return Stats(current: series.trend(asOf: now),
-                     delta7Days: delta(now, now.addingTimeInterval(-7 * 86_400)),
-                     delta30Days: delta(now, now.addingTimeInterval(-30 * 86_400)),
-                     deltaVisibleRange: delta(visibleRange.upperBound, visibleRange.lowerBound))
+                     delta7Days: delta(end: now, start: now.addingTimeInterval(-7 * 86_400)),
+                     delta30Days: delta(end: now, start: now.addingTimeInterval(-30 * 86_400)),
+                     deltaVisibleRange: delta(end: visibleRange.upperBound, start: visibleRange.lowerBound))
     }
 }
 

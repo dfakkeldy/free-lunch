@@ -34,6 +34,9 @@ struct WeightLaneSeriesTests {
         for (range, component, value) in [(WeightLaneRange.oneMonth, Calendar.Component.month, -1), (.threeMonths, .month, -3), (.sixMonths, .month, -6), (.oneYear, .year, -1)] {
             #expect(range.bounds(endingAt: now, firstSample: origin, calendar: calendar).lowerBound == calendar.date(byAdding: component, value: value, to: now))
         }
+        let march = calendar.date(from: DateComponents(year: 2024, month: 3, day: 31))!
+        let february = calendar.date(from: DateComponents(year: 2024, month: 2, day: 29))!
+        #expect(WeightLaneRange.oneMonth.bounds(endingAt: march, firstSample: nil, calendar: calendar).lowerBound == february)
         #expect(WeightLaneRange.all.bounds(endingAt: now, firstSample: origin, calendar: calendar) == origin...now)
     }
 }
