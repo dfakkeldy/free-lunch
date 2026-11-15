@@ -3,6 +3,53 @@
 Newest first. Product decisions live in the private planning repo; this log
 records the code-level choices made here.
 
+## 2026-11-15 — Formula grammar: units, literals, unary minus, caps
+
+`FormulaParser.parse` (FLEnergyCore) turns §4 formula text into a
+`FormulaExpression` tree or one `FormulaDiagnostic`. It never evaluates.
+
+- **Offsets and the length cap use UTF-16 code units**, the unit `NSRange`
+  and text views use, so the editor can highlight a range as is. The cap is
+  500 units (500 parses, 501 does not) and is checked before anything else
+  is read. An emoji counts as 2. A range never splits a character: the
+  length diagnostic starts at the first character that does not fit, and a
+  bad character's range covers the whole grapheme.
+- **Literals** are decimal digits with an optional `.digits` fraction: no
+  exponent, no leading or trailing dot, no digit separators. A run that
+  starts like a number but is not one (`1e3`, `1.2.3`, `2rho`) is one
+  `invalidNumber` token. A literal that overflows to infinity is rejected;
+  one that underflows to zero is not.
+- **Unary minus is allowed**, any number of times, and binds tighter than
+  `*` and `/` (`-2 * 3` is `(-2) * 3`). There is no unary plus. It is
+  `.negate` in the tree (`-0` is a negated zero, not a literal); the
+  evaluator owns what it means.
+- **Depth**: each parenthesis group and each call's argument list opens a
+  level. 16 levels parse; the `(` that opens the 17th is the diagnostic's
+  range. Unary minus does not count, and is parsed in a loop, so 499 of them
+  cost no stack. The depth cap does not bound the tree's height: minus runs
+  and long operator chains nest one level per operator, so only the length
+  cap does (under 500 levels).
+- **Names** are case-sensitive and ASCII only. All eight §4 variables parse.
+  A name in call position must be one of `min`, `max`, `clamp`, `abs`, and
+  any other name must be a variable; both failures are `unknownIdentifier`
+  (so `rho(1)` and a bare `min` are unknown identifiers). Whitespace may sit
+  between a function name and its `(`. Arity errors span the whole call.
+  An unknown name that runs straight into a non-ASCII character (`rhó`
+  lexes as `rh` then `ó`) reports that character, not the truncated name.
+  Nothing else changes: `1 2é` still reports the stray `2`, and `foo#` still
+  reports `foo`.
+- **Whitespace** is space, tab, LF, CR and CRLF only. Anything else,
+  including a non-breaking space, is an unexpected character.
+- **One diagnostic**: length first, then the first problem reading left to
+  right, whatever its kind (an arity error beats a later depth error). A
+  lexical error is reported only when the parser reaches it, so `1 2 #`
+  reports the stray `2`. Running out of text where an operand belongs points at the
+  token left dangling (`+` in `1 +`); running out inside a group points at
+  the innermost unclosed `(`.
+- **The tree holds no source ranges**, so formulas that differ only in
+  spacing or redundant parentheses are equal. `call` keeps its arguments as
+  an array; the parser guarantees the count matches the function's arity.
+
 ## 2026-11-03 — Exposure curve math
 
 - `ExposureCurve` (FLCore) sums one Bateman curve per logged shot, scaled
