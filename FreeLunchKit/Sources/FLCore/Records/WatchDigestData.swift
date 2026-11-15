@@ -48,12 +48,14 @@ public struct WatchNextDoseData: Sendable, Hashable, Codable {
     /// Canonical milligrams of the most recent shot, the "Taken now" default.
     public var doseMg: Double
     public var nextDoseAt: Date
+    public var intervalDays: Int?
 
-    public init(medicationID: UUID, medicationName: String, doseMg: Double, nextDoseAt: Date) {
+    public init(medicationID: UUID, medicationName: String, doseMg: Double, nextDoseAt: Date, intervalDays: Int? = nil) {
         self.medicationID = medicationID
         self.medicationName = medicationName
         self.doseMg = doseMg
         self.nextDoseAt = nextDoseAt
+        self.intervalDays = intervalDays
     }
 }
 

@@ -61,7 +61,12 @@ public enum NextDose {
             .max { $0.takenAt < $1.takenAt }
         guard let latest else { return nil }
 
-        return calendar.date(byAdding: .day, value: profile.intervalDays, to: latest.takenAt)
+        return projectedDate(takenAt: latest.takenAt, intervalDays: profile.intervalDays, calendar: calendar)
+    }
+
+    public static func projectedDate(takenAt: Date, intervalDays: Int, calendar: Calendar) -> Date? {
+        guard intervalDays > 0 else { return nil }
+        return calendar.date(byAdding: .day, value: intervalDays, to: takenAt)
     }
 
     /// The next dose's calm state at `now`, or nil when nothing is projected.
@@ -86,6 +91,10 @@ public enum NextDose {
             calendar: calendar
         ) else { return nil }
 
+        return status(dueAt: dueAt, now: now, calendar: calendar)
+    }
+
+    public static func status(dueAt: Date, now: Date, calendar: Calendar) -> NextDoseStatus {
         if now > dueAt {
             let daysLate = calendar.dateComponents(
                 [.day],
