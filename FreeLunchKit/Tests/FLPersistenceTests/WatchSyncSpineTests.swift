@@ -114,6 +114,7 @@ final class InstrumentedWatchStore: WatchWorkingSetStore {
     func recentFoods() throws -> [RecentFoodSnapshotData] { try base.recentFoods() }
     func enqueueShot(_ shot: ShotEventData, queuedAt: Date) throws { try base.enqueueShot(shot, queuedAt: queuedAt) }
     func enqueueMeal(id: UUID, payload: Data, queuedAt: Date) throws { try base.enqueueMeal(id: id, payload: payload, queuedAt: queuedAt) }
+    func enqueueMealAppend(id: UUID, mealID: UUID, payload: Data, queuedAt: Date) throws { try base.enqueueMealAppend(id: id, mealID: mealID, payload: payload, queuedAt: queuedAt) }
     func enqueueHungerEdit(_ edit: WatchHungerEdit) throws -> UUID { try base.enqueueHungerEdit(edit) }
     func outbox() throws -> [WatchOutboxItem] { try base.outbox() }
     func acknowledge(_ outboxIDs: [UUID]) throws { try base.acknowledge(outboxIDs) }
