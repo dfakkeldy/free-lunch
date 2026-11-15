@@ -15,12 +15,12 @@ struct TimelineDayHeader: View {
             if !isToday {
                 let glyph = model.glyph(for: day)
                 Image(systemName: glyph.symbol)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(tint(for: glyph.tint))
                     .accessibilityLabel(glyph.accessibilityLabel)
             }
             Spacer()
             Menu {
-                Button(model.markedDays.contains(day) ? "Undo didn't track" : "Didn't track today") {
+                Button(model.markedDays.contains(day) ? "Undo didn't track" : (isToday ? "Didn't track today" : "Didn't track this day")) {
                     model.toggleDidNotTrack(day: day)
                 }
             } label: {
@@ -28,6 +28,10 @@ struct TimelineDayHeader: View {
             }
             .accessibilityLabel("Day options")
         }
+    }
+
+    private func tint(for tint: TimelineGlyph.Tint) -> Color {
+        switch tint { case .secondary: .secondary }
     }
 }
 

@@ -1,14 +1,14 @@
 # Decisions
 
+Newest first. Product decisions live in the private planning repo; this log
+records the code-level choices made here.
+
 ## 2026-11-15 — Timeline history window
 
 The timeline shows every day in the preceding 30 calendar days, including
 empty days, and older days with visible records or a didn't-track mark.
 This makes the empty state available without manufacturing an unlimited list
 of empty dates. Drafts stay under Today until they are logged.
-
-Newest first. Product decisions live in the private planning repo; this log
-records the code-level choices made here.
 
 ## 2026-11-15 — Formula grammar: units, literals, unary minus, caps
 

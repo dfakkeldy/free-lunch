@@ -20,7 +20,24 @@ import Testing
         #expect(feed.past.prefix(3).map { $0.items.count } == [1, 1, 1])
     }
 
+    @Test func draftMarksAndPlanBoundaries() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        func at(_ days: Int) -> Date { calendar.date(byAdding: .day, value: days, to: now)! }
+        let draft = MealEntryData(createdAt: at(-40), source: .phone)
+        let early = PlannedMealData(plannedAt: now.addingTimeInterval(-60), name: "Today")
+        let boundary = PlannedMealData(plannedAt: at(7), name: "Boundary")
+        let skipped = PlannedMealData(plannedAt: at(1), status: .skipped, name: "Skipped")
+        let note = JournalEntryData(at: at(1), text: "Future")
+        let feed = TimelineFeed.build(now: now, calendar: calendar, meals: [draft], shots: [], weights: [], effects: [], journal: [note], plannedShots: [], plannedMeals: [boundary, early, skipped], markedDays: [at(-50)])
+        #expect(feed.today.items.map(\.id) == ["meal-\(draft.id)"])
+        #expect(feed.upcoming.map(\.id) == ["planned-meal-\(early.id)", "journal-\(note.id)"])
+        #expect(feed.past.last?.day == calendar.startOfDay(for: at(-50)))
+    }
+
     @Test func neutralGlyphs() {
+        #expect([TimelineGlyph.complete, .markedNotTracked, .empty].allSatisfy { $0.tint == .secondary })
         #expect([TimelineGlyph.complete, .markedNotTracked, .empty].map(\.symbol) == ["checkmark.circle", "minus.circle", "circle"])
     }
 
@@ -28,6 +45,8 @@ import Testing
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let source = try String(contentsOf: root.appendingPathComponent("FreeLunchPhone/TimelineDayView.swift"), encoding: .utf8)
         let header = source.components(separatedBy: "struct NextDoseRow")[0]
-        #expect(!header.lowercased().contains(".red"))
+        for forbidden in [".red", ".pink", ".orange", "color(red:", ".destructive"] {
+            #expect(!header.lowercased().contains(forbidden))
+        }
     }
 }

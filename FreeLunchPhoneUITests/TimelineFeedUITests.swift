@@ -8,11 +8,12 @@ final class TimelineFeedUITests: XCTestCase {
         let app = XCUIApplication(bundleIdentifier: "com.freelunch.nutrition")
         app.launchArguments += ["-FLUITestInMemoryStore", "-FLUITestSeedTimeline"]
         app.launch()
-        let planned = app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'Synthetic planned meal'")).firstMatch
+        let upcoming = app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'Synthetic upcoming 1'")).firstMatch
         let draft = app.buttons["timeline.draftRow"].firstMatch
-        XCTAssertTrue(planned.waitForExistence(timeout: 15))
-        XCTAssertTrue(draft.waitForExistence(timeout: 10))
-        XCTAssertLessThan(planned.frame.minY, draft.frame.minY)
+        XCTAssertTrue(upcoming.waitForExistence(timeout: 15))
+        XCTAssertFalse(app.staticTexts["timeline.today.header"].isHittable)
+        for _ in 0..<5 where !draft.isHittable { app.swipeUp() }
+        XCTAssertTrue(draft.isHittable)
         let one = app.buttons.containing(NSPredicate(format: "label CONTAINS 'Synthetic day 1'")).firstMatch
         let two = app.buttons.containing(NSPredicate(format: "label CONTAINS 'Synthetic day 2'")).firstMatch
         let three = app.buttons.containing(NSPredicate(format: "label CONTAINS 'Synthetic day 3'")).firstMatch

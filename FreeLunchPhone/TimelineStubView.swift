@@ -1,10 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// A stand-in for the timeline: the entry point to the plate screen until
-// the timeline section (spec §7) is frozen. It carries the primary Log
-// action and the settings gear, lists drafts (visually pending, with the
-// >24 h nudge) and today's logged plates, and hosts the post-log sheet so
-// that dismissing the sheet lands here in one gesture (spec §2 acceptance
-// #7).
+// Timeline feed and plate navigation.
 import FLCore
 import FLPlate
 import SwiftUI

@@ -51,6 +51,9 @@ final class PhoneAppModel {
     private(set) var trendPoints: [TrendPoint] = []
     private(set) var nextDose: NextDoseStatus?
     private var energyCoordinator: EnergyRecomputeCoordinator<SwiftDataStore>?
+    private var energyCoordinatorDay: Date?
+    private let ownBundleID = Bundle.main.bundleIdentifier ?? "com.freelunch.nutrition"
+    private static let historyDays = 30
     private let store: SwiftDataStore?
     private let service: PlateLifecycleService?
     private let calendar: Calendar
@@ -65,8 +68,9 @@ final class PhoneAppModel {
             service = PlateLifecycleService(store: store)
             let now = Date()
             energyCoordinator = EnergyRecomputeCoordinator(store: store, calendar: calendar,
-                ownSourceBundleID: Bundle.main.bundleIdentifier ?? "com.freelunch.nutrition",
-                today: now, historyFrom: calendar.date(byAdding: .day, value: -30, to: now)!)
+                ownSourceBundleID: ownBundleID,
+                today: now, historyFrom: calendar.date(byAdding: .day, value: -Self.historyDays, to: now)!)
+            energyCoordinatorDay = calendar.startOfDay(for: now)
         } catch {
             store = nil
             service = nil
@@ -106,7 +110,7 @@ final class PhoneAppModel {
     var timeline: TimelineFeed {
         TimelineFeed.build(now: Date(), calendar: calendar, meals: meals, shots: timelineShots,
             weights: timelineWeights, effects: timelineEffects, journal: timelineJournal,
-            plannedShots: timelinePlannedShots, plannedMeals: timelinePlannedMeals, markedDays: markedDays, extraDays: Set(intakeEvidence.keys))
+            plannedShots: timelinePlannedShots, plannedMeals: timelinePlannedMeals, markedDays: markedDays)
     }
 
     func glyph(for day: Date) -> TimelineGlyph {
@@ -119,11 +123,15 @@ final class PhoneAppModel {
 
     func toggleDidNotTrack(day: Date) {
         perform {
+            let now = Date()
+            if energyCoordinatorDay != calendar.startOfDay(for: now), let store {
+                energyCoordinator = EnergyRecomputeCoordinator(store: store, calendar: calendar,
+                    ownSourceBundleID: ownBundleID, today: now,
+                    historyFrom: calendar.date(byAdding: .day, value: -Self.historyDays, to: now)!)
+                energyCoordinatorDay = calendar.startOfDay(for: now)
+            }
             guard let energyCoordinator else { return }
             defer { reload() }
-            let now = Date()
-            _ = try energyCoordinator.advance(today: now,
-                historyFrom: calendar.date(byAdding: .day, value: -30, to: now)!)
             if markedDays.contains(calendar.startOfDay(for: day)) {
                 try energyCoordinator.unmarkDidNotTrack(day: day)
             } else {
@@ -381,7 +389,7 @@ final class PhoneAppModel {
             let profiles = try store.medicationProfiles(includingArchived: false)
             nextDose = NextDose.status(shots: timelineShots, activeProfile: profiles.first, now: now, calendar: calendar)
             let intake = try store.dayIntakes(through: now, calendar: calendar,
-                ownSourceBundleID: Bundle.main.bundleIdentifier ?? "com.freelunch.nutrition", markedDidNotTrack: markedDays)
+                ownSourceBundleID: ownBundleID, markedDidNotTrack: markedDays)
             intakeEvidence = Dictionary(uniqueKeysWithValues: intake.map { ($0.day, $0.evidence) })
         } catch {
             errorMessage = "Couldn't read the food log: \(error)"
@@ -414,6 +422,9 @@ final class PhoneAppModel {
             let now = Date()
             try store.createPlannedMeal(PlannedMealData(plannedAt: calendar.date(byAdding: .day, value: 1, to: now)!, name: "Synthetic planned meal"))
             try store.createPlannedShot(PlannedShotData(plannedAt: calendar.date(byAdding: .day, value: 2, to: now)!))
+            for offset in 1...8 {
+                try store.createPlannedMeal(PlannedMealData(plannedAt: calendar.date(byAdding: .minute, value: offset * 10, to: now)!, name: "Synthetic upcoming \(offset)"))
+            }
             for offset in [1, 2, 3] {
                 let plate = try service.startDraft()
                 try service.addAdHocItem(name: "Synthetic day \(offset)", quantity: Grams(100),

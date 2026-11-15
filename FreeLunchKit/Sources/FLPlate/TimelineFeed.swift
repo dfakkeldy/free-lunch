@@ -6,6 +6,9 @@ import Foundation
 public enum TimelineGlyph: Sendable, Hashable {
     case complete, markedNotTracked, empty
 
+    public enum Tint: Sendable { case secondary }
+    public var tint: Tint { .secondary }
+
     public var symbol: String {
         switch self {
         case .complete: "checkmark.circle"
@@ -66,17 +69,25 @@ public struct TimelineFeed: Sendable {
     public static func build(now: Date, calendar: Calendar, meals: [MealEntryData],
         shots: [ShotEventData], weights: [CorrectedWeightSample], effects: [SideEffectEntryData],
         journal: [JournalEntryData], plannedShots: [PlannedShotData], plannedMeals: [PlannedMealData],
-        markedDays: Set<Date> = [], extraDays: Set<Date> = []) -> TimelineFeed {
+        markedDays: Set<Date> = []) -> TimelineFeed {
         let today = calendar.startOfDay(for: now)
-        let end = calendar.date(byAdding: .day, value: 7, to: today)!
-        let upcoming = (plannedShots.filter { $0.status == .pending }.map(TimelineItem.plannedShot)
-            + plannedMeals.filter { $0.status == .pending }.map(TimelineItem.plannedMeal))
-            .filter { $0.date >= now && $0.date < end }
-            .sorted { ($0.date, $0.id) < ($1.date, $1.id) }
+        let end = calendar.date(byAdding: .day, value: 7, to: now)!
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: today)!
         let records = meals.map(TimelineItem.meal) + shots.map(TimelineItem.shot)
             + weights.map(TimelineItem.weight) + effects.map(TimelineItem.sideEffect)
             + journal.map(TimelineItem.journal)
-        let grouped = Dictionary(grouping: records.filter { $0.date < end }) { item in
+        let futureRecords = records.filter { item in
+            if case .meal(let meal) = item, meal.state == .draft { return false }
+            return item.date >= tomorrow
+        }
+        let plans = (plannedShots.filter { $0.status == .pending }.map(TimelineItem.plannedShot)
+            + plannedMeals.filter { $0.status == .pending }.map(TimelineItem.plannedMeal))
+            .filter { $0.date >= today && $0.date < end }
+        let upcoming = (plans + futureRecords).sorted { ($0.date, $0.id) < ($1.date, $1.id) }
+        let grouped = Dictionary(grouping: records.filter { item in
+            if case .meal(let meal) = item, meal.state == .draft { return true }
+            return item.date < tomorrow
+        }) { item in
             // Drafts remain visible in Today until logged.
             if case .meal(let meal) = item, meal.state == .draft { return today }
             return calendar.startOfDay(for: item.date)
@@ -85,7 +96,6 @@ public struct TimelineFeed: Sendable {
             (grouped[day] ?? []).sorted { ($0.date, $0.id) > ($1.date, $1.id) }
         }
         var days = Set(grouped.keys.filter { $0 < today })
-        days.formUnion(extraDays.map { calendar.startOfDay(for: $0) }.filter { $0 < today })
         days.formUnion(markedDays.map { calendar.startOfDay(for: $0) }.filter { $0 < today })
         for offset in 1...30 {
             if let day = calendar.date(byAdding: .day, value: -offset, to: today) { days.insert(day) }
