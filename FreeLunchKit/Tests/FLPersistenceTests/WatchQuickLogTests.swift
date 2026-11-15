@@ -66,6 +66,21 @@ import Testing
         clock.now.addTimeInterval(5)
         try service.flush()
         #expect(state.anchor?.mealID != mealID)
+        // A separate sequence pins the inclusive boundary through the service.
+        let otherState = QuickState()
+        let other = WatchQuickLogService(store: watch, sync: sync, state: otherState, clock: { clock.now })
+        clock.now = at(day: 2)
+        _ = try other.tap(foodID: foodID, lastPortionGrams: 100)
+        try other.commitPending()
+        let original = otherState.anchor?.mealID
+        clock.now = at(day: 2).addingTimeInterval(600)
+        _ = try other.tap(foodID: foodID, lastPortionGrams: 100)
+        try other.commitPending()
+        #expect(otherState.anchor?.mealID == original)
+        clock.now.addTimeInterval(660)
+        _ = try other.tap(foodID: foodID, lastPortionGrams: 100)
+        try other.commitPending()
+        #expect(otherState.anchor?.mealID != original)
         withExtendedLifetime(coordinator) {}
     }
     @Test func boundaryMarkerAndHunger() throws {
@@ -83,6 +98,9 @@ import Testing
         try service.setHunger(4)
         #expect(try store.outbox().contains { $0.kind == .hungerEdit && $0.subjectID == payload.mealID })
         service.clearDraft()
+        let before = try store.outbox().count
+        try service.setHunger(nil)
+        #expect(try store.outbox().count == before)
         let marker = try service.marker()
         #expect(state.draftID == marker)
     }
