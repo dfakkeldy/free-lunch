@@ -44,7 +44,7 @@ struct TimelineStubView: View {
 
     @ViewBuilder
     private var content: some View {
-        if model.drafts.isEmpty && model.loggedTodayMeals.isEmpty {
+        if model.drafts.isEmpty && model.loggedTodayMeals.isEmpty && model.earlierMealDays.isEmpty {
             EmptyTimelineView(model: model)
         } else {
             List {
@@ -62,6 +62,17 @@ struct TimelineStubView: View {
                 if !model.loggedTodayMeals.isEmpty {
                     Section("Logged today") {
                         ForEach(model.loggedTodayMeals) { meal in
+                            Button { model.open(meal) } label: {
+                                MealSummaryRow(model: model, meal: meal)
+                            }
+                            .foregroundStyle(.primary)
+                            .accessibilityIdentifier("timeline.loggedRow")
+                        }
+                    }
+                }
+                ForEach(model.earlierMealDays, id: \.day) { group in
+                    Section(model.loggedDay(for: group.day, now: Date()).name) {
+                        ForEach(group.meals) { meal in
                             Button { model.open(meal) } label: {
                                 MealSummaryRow(model: model, meal: meal)
                             }

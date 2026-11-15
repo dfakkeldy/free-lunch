@@ -97,6 +97,18 @@ final class PhoneAppModel {
             .sorted { ($0.loggedAt ?? .distantPast) > ($1.loggedAt ?? .distantPast) }
     }
 
+    /// Earlier logged plates, grouped by their local calendar day.
+    var earlierMealDays: [(day: Date, meals: [MealEntryData])] {
+        let today = calendar.startOfDay(for: Date())
+        let earlier = meals.filter {
+            $0.state == .logged && $0.loggedAt.map { $0 < today } == true
+        }
+        let grouped = Dictionary(grouping: earlier) { calendar.startOfDay(for: $0.loggedAt!) }
+        return grouped.keys.sorted(by: >).map { day in
+            (day, grouped[day]!.sorted { $0.loggedAt! > $1.loggedAt! })
+        }
+    }
+
     func meal(id: UUID) -> MealEntryData? {
         meals.first { $0.id == id }
     }
