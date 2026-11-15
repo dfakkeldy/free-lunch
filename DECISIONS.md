@@ -9,6 +9,16 @@ records the code-level choices made here.
 - A planned meal's name and optional note prefill the draft's note, on separate lines. Its pending link identifies that draft; only logging the linked draft completes the plan. Discarding clears the link, and an unlogged draft does not prevent end-of-day lapse.
 - Planner operations return reminder changes for a notification integration to apply. Callers route shot and linked-draft lifecycle events through the service. Multi-record changes commit together; lapse also recognizes an already-logged linked draft. A lapsed draft remains available as an independent draft. Backfilled shots that do not change the projection do not claim a reminder; deleting a linked shot or changing its medication clears the link and marks its old plan skipped. Callers route profile changes through `profileChanged`.
 
+## 2026-11-15 — Timeline history window
+
+The timeline shows every day in the preceding 30 calendar days, including
+empty days, and older days with visible records or a didn't-track mark.
+This makes the empty state available without manufacturing an unlimited list
+of empty dates. Drafts stay under Today until they are logged. Older
+reconstructed-only days will appear when their summary cards are implemented.
+The schema has no selected medication profile; the next-dose card uses the
+unarchived profile of the most recent shot until a selection exists.
+
 ## 2026-11-15 — Weight lane series
 
 The lane reads the engine's corrected trend using the persisted smoothing
