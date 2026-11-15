@@ -5,7 +5,7 @@ records the code-level choices made here.
 
 ## 2026-11-15 — Planner service choices
 
-- Skipping a shot creates no replacement until another shot event changes the projection. Reconciliation does not undo a skip at the projected time.
+- Skipping a shot creates one replacement one calendar interval after the current projection. Reconciliation preserves it until a shot event changes the projection.
 - A planned meal's name and optional note prefill the draft's note, on separate lines. Its pending link identifies that draft; only logging the linked draft completes the plan. Discarding clears the link, and an unlogged draft does not prevent end-of-day lapse.
 - Planner operations return reminder changes for a notification integration to apply. Callers route shot and linked-draft lifecycle events through the service.
 

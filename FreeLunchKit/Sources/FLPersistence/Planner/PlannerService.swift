@@ -32,7 +32,7 @@ public final class PlannerService {
     }
 
     /// Reconciliation preserves an explicitly moved reminder. A skipped dose
-    /// remains skipped until a shot event changes the projection.
+    /// replacement remains at its projected time until a shot event.
     public func reconcile(activeProfile: MedicationProfileData?) throws -> [PlannerReminderChange] {
         let pending = try store.plannedShots().filter { $0.status == .pending }
         let projection = NextDose.nextDoseAt(shots: try store.shots(), activeProfile: activeProfile, calendar: calendar)
@@ -42,8 +42,6 @@ public final class PlannerService {
         var changes: [PlannerReminderChange] = []
         for extra in pending.dropFirst() { changes.append(try remove(extra)) }
         if pending.isEmpty {
-            let all = try store.plannedShots()
-            if all.contains(where: { $0.status == .skipped && $0.plannedAt == projection }) { return changes }
             changes.append(try create(at: projection))
         }
         return changes
@@ -57,11 +55,17 @@ public final class PlannerService {
         return change(plan, old: old, new: date)
     }
 
-    public func skipShot(id: UUID) throws -> PlannerReminderChange {
+    public func skipShot(id: UUID, activeProfile: MedicationProfileData?) throws -> [PlannerReminderChange] {
         var plan = try pendingShot(id)
+        let projection = NextDose.nextDoseAt(shots: try store.shots(), activeProfile: activeProfile, calendar: calendar)
         plan.status = .skipped
         try store.updatePlannedShot(plan)
-        return change(plan, old: plan.plannedAt, new: nil)
+        var changes = [change(plan, old: plan.plannedAt, new: nil)]
+        if let projection, let profile = activeProfile,
+           let next = calendar.date(byAdding: .day, value: profile.intervalDays, to: projection) {
+            changes.append(try create(at: next))
+        }
+        return changes
     }
 
     public func logShot(_ shot: ShotEventData, activeProfile: MedicationProfileData?) throws -> [PlannerReminderChange] {
