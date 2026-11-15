@@ -66,7 +66,7 @@ public struct TimelineFeed: Sendable {
     public static func build(now: Date, calendar: Calendar, meals: [MealEntryData],
         shots: [ShotEventData], weights: [CorrectedWeightSample], effects: [SideEffectEntryData],
         journal: [JournalEntryData], plannedShots: [PlannedShotData], plannedMeals: [PlannedMealData],
-        markedDays: Set<Date> = []) -> TimelineFeed {
+        markedDays: Set<Date> = [], extraDays: Set<Date> = []) -> TimelineFeed {
         let today = calendar.startOfDay(for: now)
         let end = calendar.date(byAdding: .day, value: 7, to: today)!
         let upcoming = (plannedShots.filter { $0.status == .pending }.map(TimelineItem.plannedShot)
@@ -85,6 +85,7 @@ public struct TimelineFeed: Sendable {
             (grouped[day] ?? []).sorted { ($0.date, $0.id) > ($1.date, $1.id) }
         }
         var days = Set(grouped.keys.filter { $0 < today })
+        days.formUnion(extraDays.map { calendar.startOfDay(for: $0) }.filter { $0 < today })
         days.formUnion(markedDays.map { calendar.startOfDay(for: $0) }.filter { $0 < today })
         for offset in 1...30 {
             if let day = calendar.date(byAdding: .day, value: -offset, to: today) { days.insert(day) }

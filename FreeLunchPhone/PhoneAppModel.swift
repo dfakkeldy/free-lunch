@@ -103,33 +103,10 @@ final class PhoneAppModel {
         meals.filter { $0.state == .draft }
     }
 
-    /// Logged meals in today's calendar day, newest first.
-    var loggedTodayMeals: [MealEntryData] {
-        let now = Date()
-        return meals
-            .filter { meal in
-                guard meal.state == .logged, let loggedAt = meal.loggedAt else { return false }
-                return calendar.isDate(loggedAt, inSameDayAs: now)
-            }
-            .sorted { ($0.loggedAt ?? .distantPast) > ($1.loggedAt ?? .distantPast) }
-    }
-
-    /// Earlier logged plates, grouped by their local calendar day.
-    var earlierMealDays: [(day: Date, meals: [MealEntryData])] {
-        let today = calendar.startOfDay(for: Date())
-        let earlier = meals.filter {
-            $0.state == .logged && $0.loggedAt.map { $0 < today } == true
-        }
-        let grouped = Dictionary(grouping: earlier) { calendar.startOfDay(for: $0.loggedAt!) }
-        return grouped.keys.sorted(by: >).map { day in
-            (day, grouped[day]!.sorted { $0.loggedAt! > $1.loggedAt! })
-        }
-    }
-
     var timeline: TimelineFeed {
         TimelineFeed.build(now: Date(), calendar: calendar, meals: meals, shots: timelineShots,
             weights: timelineWeights, effects: timelineEffects, journal: timelineJournal,
-            plannedShots: timelinePlannedShots, plannedMeals: timelinePlannedMeals, markedDays: markedDays)
+            plannedShots: timelinePlannedShots, plannedMeals: timelinePlannedMeals, markedDays: markedDays, extraDays: Set(intakeEvidence.keys))
     }
 
     func glyph(for day: Date) -> TimelineGlyph {

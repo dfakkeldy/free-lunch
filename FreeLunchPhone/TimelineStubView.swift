@@ -159,7 +159,7 @@ struct MealSummaryRow: View {
     }
 
     private var title: String {
-        let names = model.rows(for: meal).map(\.name)
+        let names = model.rows(for: meal).prefix(3).map(\.name)
         if names.isEmpty { return "Empty plate" }
         return names.joined(separator: ", ")
     }

@@ -58,7 +58,7 @@ struct TimelineCard: View {
             Label {
                 VStack(alignment: .leading) {
                     Text("Shot · \(shot.doseMg.formatted()) mg")
-                    if let site = shot.site { Text(site.rawValue).font(.caption).foregroundStyle(.secondary) }
+                    if let site = shot.site { Label(siteName(site), systemImage: "figure.stand").font(.caption).foregroundStyle(.secondary) }
                 }
             } icon: { Image(systemName: "syringe") }
         case .weight(let weight):
@@ -80,6 +80,19 @@ struct TimelineCard: View {
             Label("Planned shot\(plan.doseMg.map { " · \($0.formatted()) mg" } ?? "") · \(plan.plannedAt.formatted(date: .abbreviated, time: .shortened))", systemImage: "calendar")
         case .plannedMeal(let plan):
             Label("\(plan.name) · \(plan.plannedAt.formatted(date: .abbreviated, time: .shortened))", systemImage: "calendar")
+        }
+    }
+
+    private func siteName(_ site: InjectionSite) -> String {
+        switch site {
+        case .abdomenLeft: "Left abdomen"
+        case .abdomenRight: "Right abdomen"
+        case .thighLeft: "Left thigh"
+        case .thighRight: "Right thigh"
+        case .armLeft: "Left arm"
+        case .armRight: "Right arm"
+        case .other1: "Other site 1"
+        case .other2: "Other site 2"
         }
     }
 

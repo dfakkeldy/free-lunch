@@ -33,6 +33,23 @@ final class TimelineFeedUITests: XCTestCase {
     }
 
     @MainActor
+    func testMarkAndUnmarkToday() {
+        continueAfterFailure = false
+        let app = XCUIApplication(bundleIdentifier: "com.freelunch.nutrition")
+        app.launchArguments += ["-FLUITestInMemoryStore", "-FLUITestSeedDraft"]
+        app.launch()
+        let menu = app.buttons["Day options"].firstMatch
+        XCTAssertTrue(menu.waitForExistence(timeout: 15))
+        menu.tap()
+        app.buttons["Didn't track today"].tap()
+        menu.tap()
+        XCTAssertTrue(app.buttons["Undo didn't track"].waitForExistence(timeout: 10))
+        app.buttons["Undo didn't track"].tap()
+        menu.tap()
+        XCTAssertTrue(app.buttons["Didn't track today"].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
     func testReopenYesterdayPlate() {
         continueAfterFailure = false
         let app = XCUIApplication(bundleIdentifier: "com.freelunch.nutrition")
