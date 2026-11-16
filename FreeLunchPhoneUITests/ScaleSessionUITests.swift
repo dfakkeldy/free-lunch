@@ -128,9 +128,13 @@ final class ScaleSessionUITests: XCTestCase {
             lower.press(forDuration: 0.05, thenDragTo: upper)
         }
         start.tap()
+        // A partially covered Start row can report hittable while its tap
+        // lands on the fixed Log bar. Diagnose that before waiting for End.
+        XCTAssertFalse(app.buttons["postLog.done"].exists, "Start tapped Log plate instead of starting the scale session")
         let end = app.buttons["plate.scale.end"]
         reveal(end, in: app)
         XCTAssertTrue(end.waitForExistence(timeout: 5))
+        XCTAssertTrue(end.isHittable)
     }
 
     @MainActor
